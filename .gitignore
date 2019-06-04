@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Log files
+*.log
+
+# Executable files
+*.sh
+
+# virtualenv
+.venv
+venv/
+ENV/
+
+# Pycharm Project
+.idea/
+
+# Experiments Folder
+experiments/*
+!experiments/.gitkeep
+
+# Data Main file
+data.main.pkl
+
+# Config File
+global.config.yml
+split.config.yml
+model.config.yml

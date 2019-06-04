@@ -1,0 +1,28 @@
+quantizer:
+  q_type_ulaw: True
+  q_levels: 256
+conditionants:
+  speaker_type: 'embedding'
+  speaker_embedding_size: 20
+  speaker_pase_seed_size: 50
+  utterance_type: 'linguistic'
+  utterance_acoustic_size: 43
+  utterance_linguistic_size: 55
+  utterance_linguistic_phonemes_embedding_size: 15
+  utterance_linguistic_vowels_embedding_size: 15
+  utterance_linguistic_gpos_embedding_size: 15
+  utterance_linguistic_tobi_embedding_size: 15
+  global_size: 50
+architecture:
+  sequence_length: 13
+  frame_layers_ratios: [20, 4]
+  frame_layers_rnn_layers: [1, 1]
+  frame_layers_rnn_hidden_size: [1024, 1024]
+training:
+  batch_size: 128
+  max_epochs: 100
+  lr: 0.001
+  lr_scheduler: True
+  lr_scheduler_patience: 3
+  lr_scheduler_factor: 0.5
+

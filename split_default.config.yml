@@ -1,0 +1,15 @@
+split:
+  modeling_male_speakers: 40
+  modeling_female_speakers: 40
+  modeling_train_time_per_speaker: 9999
+  modeling_val_time_per_speaker: 45
+  modeling_test_time_per_speaker: 45
+  adaptation_male_speakers: 5
+  adaptation_female_speakers: 5
+  adaptation_train_time_per_speaker: 9999
+  adaptation_val_time_per_speaker: 30
+  adaptation_test_time_per_speaker: 30
+  min_utterance_samples: 0
+  max_utterance_samples: 999999
+  priorize_longer_speakers: True
+  priorize_longer_utterances: False
