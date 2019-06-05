@@ -1,22 +1,23 @@
 datasets:
   vctk:
-    info_file_path: /path/to/speaker-info.txt
-    wavs_folder_path: path/to/wav16/
+    info_file_path: /path/to/vctk/speaker-info.txt
+    wavs_folder_path: path/to/vctk/wav16/
     conds_speaker:
-      pase_seed_folder_path: /path/to/wav16_pase_seed/
+      pase_seed_folder_path: /path/to/vctk/wav16_pase_seed/
     conds_utterance:
-      acoustic_folder_path: /path/to/wav16_conds_acoustic/
-      linguistic_folder_path: /path/to/wav16_conds_linguistic/
+      acoustic_folder_path: /path/to/vctk/wav16_conds_acoustic/
+      linguistic_folder_path: /path/to/vctk/wav16_conds_linguistic/
     sampling_freq: 16000
     n_speakers: 108
     enabled: True
   cmu_artic:
-    info_file_path: /path/to/info.txt
+    info_file_path: /path/to/cmu_artic/info.txt
+    wavs_folder_path: /path/to/cmu_artic/wav16/
     conds_speaker:
-      pase_seed_folder_path: /path/to/wav16_pase_seed/
+      pase_seed_folder_path: /path/to/cmu_artic/wav16_pase_seed/
     conds_utterance:
-      acoustic_folder_path: /path/to/wav16_conds_acoustic/
-      linguistic_folder_path: /path/to/wav16_conds_linguistic/
+      acoustic_folder_path: /path/to/cmu_artic/wav16_conds_acoustic/
+      linguistic_folder_path: /path/to/cmu_artic/wav16_conds_linguistic/
     sampling_freq: 16000
     n_speakers: 18
     enabled: True
