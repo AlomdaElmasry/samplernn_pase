@@ -110,6 +110,8 @@ class SampleRNN:
             self.model = self.model.cuda()
             if self.conf.conditionants['speaker_type'] in ['embedding', 'embedding_pase_init']:
                 self.embedding_layer = self.embedding_layer.cuda()
+            elif self.conf.conditionants['speaker_type'] == 'pase_trained':
+                self.pase_encoder = self.pase_encoder.cuda()
 
             # Move each state to CUDA
             for state in self.optimizer.state.values():
@@ -358,7 +360,7 @@ class SampleRNN:
             data_conds_speakers = torch.mean(pase_output, dim=1)
             if self.execution.cuda:
                 data_conds_speakers = data_conds_speakers.cuda()
-
+        print('step')
         # Propagate through the model
         data_samples_predicted = self.model(data_samples, data_conds_speakers, data_conds_utterances, data_model_reset)
 
