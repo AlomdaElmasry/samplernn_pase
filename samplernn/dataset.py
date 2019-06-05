@@ -38,7 +38,6 @@ class SampleRNNDataset(Dataset):
 
     speakers_ids = None
     utterances_ids = None
-
     pase_seed_duration = 60
 
     def __init__(self, execution: SampleRNNExecution, quantizer: SampleRNNQuantizer, normalize_conds: bool,
@@ -63,7 +62,7 @@ class SampleRNNDataset(Dataset):
         self.normalize_conds = normalize_conds
         self.return_full_utterance = execution.command not in ['train']
 
-        # Lala
+        # Switch between cases to assign speakers and utterances
         if not is_adaptation and split == 'train':
             self.speakers_ids = self.data.modeling_speakers_ids
             self.utterances_ids = execution.experiment.data.modeling_utterances_ids_train
@@ -82,6 +81,19 @@ class SampleRNNDataset(Dataset):
         elif is_adaptation and split == 'test':
             self.speakers_ids = self.data.adaptation_speakers_ids
             self.utterances_ids = execution.experiment.data.adaptation_utterances_ids_test
+
+        # Load parameters
+        self._load_params()
+
+    def _load_params(self):
+        self.speakers_to_utterances_indexes = {}
+        for utterance_id in self.utterances_ids:
+            utterance_speaker_index = self.data.speakers_info[self.data.utterances_info[utterance_id]['speaker_id']][
+                'index']
+            if utterance_speaker_index not in self.speakers_to_utterances_indexes:
+                self.speakers_to_utterances_indexes[utterance_speaker_index] = [utterance_id]
+            else:
+                self.speakers_to_utterances_indexes[utterance_speaker_index].append(utterance_id)
 
     def __getitem__(self, item):
         # Get the information objects

@@ -117,13 +117,14 @@ class SampleRNNExperiment:
             if modeling_regex:
                 self.available_checkpoints.append(int(modeling_regex.group(1)))
 
-    def save_checkpoint(self, epoch_n, train_iteration_n, validation_iteration_n, embedding_state, model_state,
-                        optimizer_state, lr_scheduler_state):
+    def save_checkpoint(self, epoch_n, train_iteration_n, validation_iteration_n, embedding_state,
+                        pase_state, model_state, optimizer_state, lr_scheduler_state):
         torch.save({
             'epoch_n': epoch_n,
             'train_iteration_n': train_iteration_n,
             'validation_iteration_n': validation_iteration_n,
             'embedding_state': embedding_state,
+            'pase_state': pase_state,
             'model_state': model_state,
             'optimizer_state': optimizer_state,
             'lr_scheduler': lr_scheduler_state

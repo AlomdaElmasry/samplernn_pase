@@ -11,6 +11,7 @@ import math
 import tensorboardX
 import torch
 import random
+import pase.frontend
 
 
 class SampleRNN:
@@ -23,6 +24,7 @@ class SampleRNN:
     logger: SampleRNNLogger
 
     embedding_layer: torch.nn.Embedding
+    pase_encoder: pase.frontend.WaveFe
     model: SampleRNNModel
     optimizer: torch.optim.Optimizer
     lr_scheduler: torch.optim.lr_scheduler.StepLR
@@ -58,6 +60,9 @@ class SampleRNN:
                 num_embeddings=len(self.experiment.data.speakers_info),
                 embedding_dim=self.conf.conditionants['speaker_embedding_size']
             )
+        elif self.conf.conditionants['speaker_type'] == 'pase_trained':
+            self.pase_encoder = pase.frontend.wf_builder(self.conf.pase['config_file_path'])
+            self.pase_encoder.load_pretrained(self.conf.pase['trained_model_path'], load_last=True, verbose=True)
         else:
             self.embedding_layer = None
 
@@ -79,9 +84,11 @@ class SampleRNN:
         )
 
         # Create new Optimizer with the desired configuration
-        params_to_optimize = list(self.model.parameters()) + \
-                             (list(self.embedding_layer.parameters()) if self.conf.conditionants['speaker_type'] in
-                                                                         ['embedding', 'embedding_pase_init'] else [])
+        params_to_optimize = list(self.model.parameters())
+        if self.conf.conditionants['speaker_type'] in ['embedding', 'embedding_pase_init']:
+            params_to_optimize += list(self.embedding_layer.parameters())
+        if self.conf.conditionants['speaker_type'] == 'pase_trained':
+            params_to_optimize += list(self.pase_encoder.parameters())
         self.optimizer = torch.optim.Adam(params=params_to_optimize, lr=self.conf.training['lr'])
 
         # Create the Scheduler
@@ -194,6 +201,7 @@ class SampleRNN:
                 train_iteration_n=self.train_iteration_n,
                 validation_iteration_n=self.validation_iteration_n,
                 embedding_state=(self.embedding_layer.state_dict() if self.embedding_layer else None),
+                pase_state=(self.pase_encoder.state_dict() if self.pase_encoder else None),
                 model_state=(
                     self.model.module.state_dict() if isinstance(self.model, torch.nn.DataParallel)
                     else self.model.state_dict()
@@ -212,7 +220,6 @@ class SampleRNN:
 
         # Iterate over the list of epochs to test
         for test_epoch in self.execution.checkpoint_epoch:
-
             # Load checkpoint
             self._load_checkpoint(epoch_n=test_epoch)
 
@@ -313,7 +320,9 @@ class SampleRNN:
         checkpoint_state = self.experiment.load_checkpoint(epoch_n=epoch_n)
         self.model.load_state_dict(checkpoint_state['model_state'])
         if checkpoint_state['embedding_state']:
-            pass  # self.embedding_layer.load_state_dict(checkpoint_state['embedding_state'])
+            self.embedding_layer.load_state_dict(checkpoint_state['embedding_state'])
+        if checkpoint_state['pase_state']:
+            self.pase_encoder.load_state_dict(checkpoint_state['pase_state'])
         if epoch_n != 0:
             self.optimizer.load_state_dict(checkpoint_state['optimizer_state'])
             self.lr_scheduler.load_state_dict(checkpoint_state['lr_scheduler'])
@@ -341,6 +350,12 @@ class SampleRNN:
             if self.execution.cuda:
                 data_speakers_ids = data_speakers_ids.cuda()
             data_conds_speakers = self.embedding_layer(data_speakers_ids)
+        elif self.conf.conditionants['speaker_type'] == 'pase_trained':
+            speaker_indexes = [data_info_item['speaker']['index'] if data_info_item is not None
+                               else 0 for data_info_item in data_info]
+            pase_chunks = self.val_data_loader.get_random_chunks(speaker_indexes, 16000).unsqueeze(1)
+            pase_output = self.pase_encoder(pase_chunks)
+            data_conds_speakers = torch.mean(pase_output, dim=1)
 
         # Propagate through the model
         data_samples_predicted = self.model(data_samples, data_conds_speakers, data_conds_utterances, data_model_reset)
@@ -385,6 +400,12 @@ class SampleRNN:
             if self.execution.cuda:
                 data_speakers_ids = data_speakers_ids.cuda()
             data_conds_speakers = self.embedding_layer(data_speakers_ids)
+        elif self.conf.conditionants['speaker_type'] == 'pase_trained':
+            speaker_indexes = [data_info_item['speaker']['index'] if data_info_item is not None
+                               else 0 for data_info_item in data_info]
+            pase_chunks = self.val_data_loader.get_random_chunks(speaker_indexes, 16000).unsqueeze(1)
+            pase_output = self.pase_encoder(pase_chunks)
+            data_conds_speakers = torch.mean(pase_output, dim=1)
 
         # Propagate validation samples through the model
         with torch.no_grad():

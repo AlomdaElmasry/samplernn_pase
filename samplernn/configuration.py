@@ -42,6 +42,11 @@ class SampleRNNConfiguration:
         'total_speakers': None
     }
 
+    pase = {
+        'config_file_path': None,
+        'trained_model_path': None
+    }
+
     split = {
         'modeling_male_speakers': None,
         'modeling_female_speakers': None,
@@ -166,7 +171,7 @@ class SampleRNNConfiguration:
         self.architecture['receptive_field'] = self.architecture['frame_size'] * self.architecture['sequence_length']
 
     def _validate_config(self):
-        assert self.conditionants['speaker_type'] in ['embedding', 'pase_seed', 'embedding_pase_init']
+        assert self.conditionants['speaker_type'] in ['embedding', 'pase_seed', 'embedding_pase_init', 'pase_trained']
         assert self.conditionants['utterance_type'] in ['acoustic', 'linguistic', 'linguistic_lf0']
         if self.conditionants['speaker_type'] == 'embedding_pase_init':
             assert self.conditionants['speaker_embedding_size'] == self.conditionants['speaker_pase_seed_size']
