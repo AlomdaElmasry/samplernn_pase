@@ -356,6 +356,8 @@ class SampleRNN:
             pase_chunks = self.val_data_loader.get_random_chunks(speaker_indexes, 16000).unsqueeze(1)
             pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=1)
+            if self.execution.cuda:
+                data_conds_speakers = data_conds_speakers.cuda()
 
         # Propagate through the model
         data_samples_predicted = self.model(data_samples, data_conds_speakers, data_conds_utterances, data_model_reset)
