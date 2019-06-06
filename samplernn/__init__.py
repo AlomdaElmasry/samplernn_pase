@@ -60,11 +60,11 @@ class SampleRNN:
                 num_embeddings=len(self.experiment.data.speakers_info),
                 embedding_dim=self.conf.conditionants['speaker_embedding_size']
             )
+            self.pase_encoder = None
         elif self.conf.conditionants['speaker_type'] == 'pase_trained':
+            self.embedding_layer = None
             self.pase_encoder = pase.frontend.wf_builder(self.conf.pase['config_file_path'])
             self.pase_encoder.load_pretrained(self.conf.pase['trained_model_path'], load_last=True, verbose=True)
-        else:
-            self.embedding_layer = None
 
         # Initialize Embedding if required
         if self.conf.conditionants['speaker_type'] == 'embedding_pase_init':
