@@ -410,7 +410,8 @@ class SampleRNN:
             pase_chunks = self.val_data_loader.get_random_chunks(speaker_indexes, 16000).unsqueeze(1)
             if self.execution.cuda:
                 pase_chunks = pase_chunks.cuda()
-            pase_output = self.pase_encoder(pase_chunks)
+            with torch.no_grad():
+                pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=1)
 
         # Propagate validation samples through the model
