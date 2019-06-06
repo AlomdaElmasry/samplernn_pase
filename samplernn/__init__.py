@@ -408,6 +408,8 @@ class SampleRNN:
             speaker_indexes = [data_info_item['speaker']['index'] if data_info_item is not None
                                else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speaker_indexes, 16000).unsqueeze(1)
+            if self.execution.cuda:
+                pase_chunks = pase_chunks.cuda()
             pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=1)
 
