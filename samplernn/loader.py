@@ -122,15 +122,12 @@ class SampleRNNDataLoader(DataLoader):
 
         return samples, None, conds_speakers, conds_utterances, model_reset, info
 
-    def get_random_chunks(self, speaker_indexes, samples_n):
-        random_chunks = np.zeros((len(speaker_indexes), samples_n))
-        for i, speaker_index in enumerate(speaker_indexes):
-            random_utterance = None
-            while random_utterance is None or random_utterance[0].shape[0] < samples_n:
-                random_utterance_id = random.sample(self.dataset.speakers_to_utterances_indexes[speaker_index], k=1)[0]
-                random_utterance = self.dataset.__getitem__(self.dataset.utterances_ids.index(random_utterance_id))
-            random_start = random.randint(0, random_utterance[0].shape[0] - samples_n)
-            random_chunks[i, :] = random_utterance[0][random_start:random_start + samples_n]
+    def get_random_chunks(self, speakers, chunk_length):
+        random_chunks = np.zeros((len(speakers), chunk_length))
+        speaker_ids = [self.dataset.data.datasets_info[speaker['dataset_id']]['speakers_prefix'] + speaker['name'] for
+                       speaker in speakers]
+        for i, speaker_id in enumerate(speaker_ids):
+            random_chunks[i, :] = self.dataset.get_random_chunk(speaker_id, chunk_length)
         return torch.Tensor(random_chunks)
 
     def get_data_info(self, speaker_id=None):

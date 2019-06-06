@@ -30,7 +30,7 @@ train_data_loader = SampleRNNDataLoader(
     execution=execution,
     quantizer=quantizer,
     is_adaptation=execution.experiment.is_adaptation,
-    split='train'
+    split='validation'
 )
 
 loading_time = time.time()
@@ -46,14 +46,14 @@ model = SampleRNNModel(
         len(execution.experiment.data.utterances_conds_linguistic_categories['tobi'])
     ]
 )
-model = model.cuda()
+model = model
 
 load_samplernn = time.time()
 print('Loading SampleRNN: {}'.format(load_samplernn-loading_time))
 
 pase_encoder = pase.frontend.wf_builder(execution.experiment.conf.pase['config_file_path'])
 pase_encoder.load_pretrained(execution.experiment.conf.pase['trained_model_path'], load_last=True, verbose=True)
-pase_encoder = pase_encoder.cuda()
+pase_encoder = pase_encoder
 
 load_pase = time.time()
 print('Loading PASE: {}'.format(load_pase-load_samplernn))
@@ -64,10 +64,10 @@ for i, data in enumerate(train_data_loader):
         print('Load Data Iteration {}: {}'.format(i, init_it-end_it))
     data_samples, data_samples_target, data_conds_speakers, data_conds_utterances, data_model_reset, data_info = \
         data
-    speaker_indexes = [data_info_item['speaker']['index'] if data_info_item is not None
-                       else 0 for data_info_item in data_info]
+    speaker_indexes = [data_info_item['speaker'] if data_info_item is not None else None for data_info_item in
+                       data_info]
     pase_chunks = train_data_loader.get_random_chunks(speaker_indexes, 16000).unsqueeze(1)
-    pase_chunks = pase_chunks.cuda()
+    pase_chunks = pase_chunks
     prepare_data = time.time()
     print('Prepare PASE data Iteration {}: {}'.format(i, prepare_data-init_it))
     pase_output = pase_encoder(pase_chunks)

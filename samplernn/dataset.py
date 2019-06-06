@@ -15,10 +15,6 @@ import operator
 
 
 class SampleRNNDataset(Dataset):
-    """
-
-    """
-
     conf: SampleRNNConfiguration
     quantizer: SampleRNNQuantizer
     data: SampleRNNData
@@ -38,7 +34,10 @@ class SampleRNNDataset(Dataset):
 
     speakers_ids = None
     utterances_ids = None
+
     pase_seed_duration = 60
+
+    data_wav_ram = {}
 
     def __init__(self, execution: SampleRNNExecution, quantizer: SampleRNNQuantizer, normalize_conds: bool,
                  is_adaptation: bool, split: str):
@@ -85,6 +84,10 @@ class SampleRNNDataset(Dataset):
         # Load parameters
         self._load_params()
 
+        # Load RAM for Validation Dataset
+        if split == 'validation':
+            self._load_data_ram()
+
     def _load_params(self):
         self.speakers_to_utterances_indexes = {}
         for utterance_id in self.utterances_ids:
@@ -94,6 +97,19 @@ class SampleRNNDataset(Dataset):
                 self.speakers_to_utterances_indexes[utterance_speaker_index] = [utterance_id]
             else:
                 self.speakers_to_utterances_indexes[utterance_speaker_index].append(utterance_id)
+
+    def _load_data_ram(self):
+        for utterance_id in self.utterances_ids:
+            utterance = self.data.utterances_info[utterance_id]
+            speaker = self.data.speakers_info[utterance['speaker_id']]
+            dataset = self.data.datasets_info[speaker['dataset_id']]
+            utterance_read_wav, _ = soundfile.read(dataset['wavs_folder_path'] + utterance['path'] + '.wav')
+            if utterance['speaker_id'] not in self.data_wav_ram:
+                self.data_wav_ram[utterance['speaker_id']] = utterance_read_wav
+            else:
+                self.data_wav_ram[utterance['speaker_id']] = np.concatenate(
+                    (self.data_wav_ram[utterance['speaker_id']], utterance_read_wav)
+                )
 
     def __getitem__(self, item):
         # Get the information objects
@@ -183,6 +199,10 @@ class SampleRNNDataset(Dataset):
     def set_pase_seed_duration(self, pase_seed_duration):
         self.pase_seed_duration = pase_seed_duration
 
+    def get_random_chunk(self, speaker_id, chunk_length):
+        random_start = random.randint(0, self.data_wav_ram[speaker_id].size - chunk_length)
+        return self.data_wav_ram[speaker_id][random_start:random_start + chunk_length]
+
     def _get_model_len(self, utterance_wav_len_real: int):
         # Compute samples in every forward
         samples_per_forward = self.conf.architecture['frame_size'] * self.conf.architecture['sequence_length']
@@ -197,6 +217,9 @@ class SampleRNNDataset(Dataset):
 
         # Return both results
         return next_seq_length_mult, int(next_seq_length_mult / self.conf.architecture['frame_size'])
+
+    def _get_utterance_wav(self, dataset, speaker, utterance):
+        pass
 
     def _get_speaker_conds_pase_seed(self, dataset, speaker, utterance):
 
