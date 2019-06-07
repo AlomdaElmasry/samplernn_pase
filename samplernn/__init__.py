@@ -359,7 +359,7 @@ class SampleRNN:
             if self.execution.cuda:
                 pase_chunks = pase_chunks.cuda()
             pase_output = self.pase_encoder(pase_chunks)
-            data_conds_speakers = torch.mean(pase_output, dim=1)
+            data_conds_speakers = torch.mean(pase_output, dim=2)
 
         # Propagate through the model
         data_samples_predicted = self.model(data_samples, data_conds_speakers, data_conds_utterances, data_model_reset)
@@ -412,7 +412,7 @@ class SampleRNN:
                 pase_chunks = pase_chunks.cuda()
             with torch.no_grad():
                 pase_output = self.pase_encoder(pase_chunks)
-            data_conds_speakers = torch.mean(pase_output, dim=1)
+            data_conds_speakers = torch.mean(pase_output, dim=2)
 
         # Propagate validation samples through the model
         with torch.no_grad():
