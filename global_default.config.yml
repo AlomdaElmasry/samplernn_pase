@@ -21,3 +21,6 @@ datasets:
     sampling_freq: 16000
     n_speakers: 18
     enabled: True
+pase:
+  config_file_path: /Users/DavidAlvarezDLT/PycharmProjects/samplernn_pytorch/data/pase.cfg
+  trained_model_path: /Users/DavidAlvarezDLT/PycharmProjects/samplernn_pytorch/data/PASE.ckpt

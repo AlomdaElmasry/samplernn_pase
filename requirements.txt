@@ -1,6 +1,6 @@
 numpy==1.16.0
-torch==1.0.0
-PyYAML==3.13
+torch==1.0.1
+PyYAML==5.1.1
 tensorboardX==1.6
 soundfile==0.10.2
 git+https://github.com/santi-pdp/ahoproc_tools

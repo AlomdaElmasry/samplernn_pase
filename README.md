@@ -2,6 +2,7 @@
 
 Code used in [Problem-Agnostic Speech Embeddings for Multi-Speaker Text-to-Speech with SampleRNN](https://arxiv.org/abs/1906.00733)
 
+__Note__: the code is not production-ready, but it works. I will improve it over time.
 
 ## Dependencies
 
