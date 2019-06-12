@@ -2,8 +2,6 @@ datasets:
   vctk:
     info_file_path: /path/to/speaker-info.txt
     wavs_folder_path: path/to/wav16/
-    conds_speaker:
-      pase_seed_folder_path: /path/to/wav16_pase_seed/
     conds_utterance:
       acoustic_folder_path: /path/to/wav16_conds_acoustic/
       linguistic_folder_path: /path/to/wav16_conds_linguistic/
@@ -12,8 +10,6 @@ datasets:
     enabled: True
   cmu_artic:
     info_file_path: /path/to/info.txt
-    conds_speaker:
-      pase_seed_folder_path: /path/to/wav16_pase_seed/
     conds_utterance:
       acoustic_folder_path: /path/to/wav16_conds_acoustic/
       linguistic_folder_path: /path/to/wav16_conds_linguistic/

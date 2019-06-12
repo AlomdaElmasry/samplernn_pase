@@ -35,8 +35,6 @@ class SampleRNNDataset(Dataset):
     speakers_ids = None
     utterances_ids = None
 
-    pase_seed_duration = 60
-
     data_wav_ram = {}
 
     def __init__(self, execution: SampleRNNExecution, quantizer: SampleRNNQuantizer, normalize_conds: bool,
@@ -130,10 +128,8 @@ class SampleRNNDataset(Dataset):
         utterance_wav = np.zeros((utterance_wav_len_model))
         utterance_wav[:utterance_wav_len] = utterance_read_wav[:utterance_wav_len]
 
-        # Speaker cond_type
+        # PATCH: create a variable for the speaker conds (TO BE REMOVED)
         speaker_conds = np.zeros(self.conf.conditionants['speaker_size'])
-        if self.conf.conditionants['speaker_type'] == 'pase_seed':
-            speaker_conds = self._get_speaker_conds_pase_seed(dataset, speaker, utterance)
 
         # Acoustic cond_type
         if self.conf.conditionants['utterance_type'] == 'acoustic':
@@ -196,9 +192,6 @@ class SampleRNNDataset(Dataset):
             'linguistic_conds': dataset['conds_utterance']['linguistic_folder_path'] + utterance['path'] + '.lab'
         }
 
-    def set_pase_seed_duration(self, pase_seed_duration):
-        self.pase_seed_duration = pase_seed_duration
-
     def get_random_chunk(self, speaker_id, chunk_length):
         random_start = random.randint(0, self.data_wav_ram[speaker_id].size - chunk_length)
         return self.data_wav_ram[speaker_id][random_start:random_start + chunk_length]
@@ -217,30 +210,6 @@ class SampleRNNDataset(Dataset):
 
         # Return both results
         return next_seq_length_mult, int(next_seq_length_mult / self.conf.architecture['frame_size'])
-
-    def _get_utterance_wav(self, dataset, speaker, utterance):
-        pass
-
-    def _get_speaker_conds_pase_seed(self, dataset, speaker, utterance):
-
-        # Create placeholder for the PASE seed path
-        pase_seed_path = None
-
-        # Format the url of the PASE folder
-        if self.pase_seed_duration == 1:
-            pase_seed_path = dataset['conds_speaker']['pase_seed_folder_path'][:-1] + '_1s' + os.sep + speaker['name'] \
-                             + '.seed.pkl'
-        elif self.pase_seed_duration == 10:
-            pase_seed_path = dataset['conds_speaker']['pase_seed_folder_path'][:-1] + '_10s' + os.sep + speaker[
-                'name'] + '.seed.pkl'
-        elif self.pase_seed_duration == 60:
-            pase_seed_path = dataset['conds_speaker']['pase_seed_folder_path'][:-1] + '_60s' + os.sep + speaker['name'] \
-                             + '.seed.pkl'
-        elif self.pase_seed_duration == 120:
-            pase_seed_path = dataset['conds_speaker']['pase_seed_folder_path'][:-1] + '_120s' + os.sep + speaker[
-                'name'] + '.seed.pkl'
-        with open(pase_seed_path, 'rb') as speaker_conds_file:
-            return pickle.load(speaker_conds_file)
 
     def _get_utterance_conds_acoustic(self, dataset, speaker, utterance):
         """

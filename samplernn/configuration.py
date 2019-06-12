@@ -14,9 +14,6 @@ class SampleRNNConfiguration:
         'vctk': {
             'speakers-info_file_path': None,
             'wavs_folder_path': None,
-            'conds_speaker': {
-                'pase_seed_folder_path': None
-            },
             'conds_utterance': {
                 'acoustic_folder_path': None,
                 'linguistic_folder_path': None
@@ -28,9 +25,6 @@ class SampleRNNConfiguration:
         'cmu_artic': {
             'info_file_path': None,
             'wavs_folder_path': None,
-            'conds_speaker': {
-                'pase_seed_folder_path': None
-            },
             'conds_utterance': {
                 'acoustic_folder_path': None,
                 'linguistic_folder_path': None
@@ -171,7 +165,5 @@ class SampleRNNConfiguration:
         self.architecture['receptive_field'] = self.architecture['frame_size'] * self.architecture['sequence_length']
 
     def _validate_config(self):
-        assert self.conditionants['speaker_type'] in ['embedding', 'pase_seed', 'embedding_pase_init', 'pase_trained']
+        assert self.conditionants['speaker_type'] in ['embedding', 'pase_seed', 'pase_trained']
         assert self.conditionants['utterance_type'] in ['acoustic', 'linguistic', 'linguistic_lf0']
-        if self.conditionants['speaker_type'] == 'embedding_pase_init':
-            assert self.conditionants['speaker_embedding_size'] == self.conditionants['speaker_pase_seed_size']

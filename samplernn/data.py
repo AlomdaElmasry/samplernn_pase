@@ -88,17 +88,6 @@ class SampleRNNData:
     def get_utterance_id(utterance_info):
         return utterance_info['speaker']['name'] + '-' + utterance_info['utterance']['name']
 
-    def get_pase_seeds(self):
-        pase_seeds = np.random.rand(len(self.speakers_info), self.conf.conditionants['speaker_pase_seed_size']).astype(
-            np.float32)
-        for speaker_id in self.modeling_speakers_ids:
-            speaker = self.speakers_info[speaker_id]
-            dataset = self.datasets_info[speaker['dataset_id']]
-            with open(dataset['conds_speaker']['pase_seed_folder_path'] + speaker['name'] + '.seed.pkl',
-                      'rb') as speaker_conds_file:
-                pase_seeds[speaker['index'], :] = pickle.load(speaker_conds_file)
-        return pase_seeds
-
     def _read_dataset_info_file(self, dataset_id):
 
         # Create an empty list to store the info
@@ -136,9 +125,6 @@ class SampleRNNData:
                 'speakers_prefix': 'vctk_',
                 'info_file_path': self.conf.datasets['vctk']['info_file_path'],
                 'wavs_folder_path': self.conf.datasets['vctk']['wavs_folder_path'],
-                'conds_speaker': {
-                    'pase_seed_folder_path': self.conf.datasets['vctk']['conds_speaker']['pase_seed_folder_path']
-                },
                 'conds_utterance': {
                     'acoustic_folder_path': self.conf.datasets['vctk']['conds_utterance']['acoustic_folder_path'],
                     'linguistic_folder_path': self.conf.datasets['vctk']['conds_utterance']['linguistic_folder_path'],
@@ -155,9 +141,6 @@ class SampleRNNData:
                 'speakers_prefix': 'cmu_',
                 'info_file_path': self.conf.datasets['cmu_artic']['info_file_path'],
                 'wavs_folder_path': self.conf.datasets['cmu_artic']['wavs_folder_path'],
-                'conds_speaker': {
-                    'pase_seed_folder_path': self.conf.datasets['cmu_artic']['conds_speaker']['pase_seed_folder_path']
-                },
                 'conds_utterance': {
                     'acoustic_folder_path': self.conf.datasets['cmu_artic']['conds_utterance']['acoustic_folder_path'],
                     'linguistic_folder_path': self.conf.datasets['cmu_artic']['conds_utterance'][
