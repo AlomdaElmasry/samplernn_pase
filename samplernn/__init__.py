@@ -107,7 +107,7 @@ class SampleRNN:
             self.model = self.model.cuda()
             if self.conf.conditionants['speaker_type'] == 'embedding':
                 self.embedding_layer = self.embedding_layer.cuda()
-            elif self.conf.conditionants['speaker_type'] == 'pase_trained':
+            elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
                 self.pase_encoder = self.pase_encoder.cuda()
 
             # Move each state to CUDA
