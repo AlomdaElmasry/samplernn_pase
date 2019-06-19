@@ -355,6 +355,8 @@ class SampleRNN:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000).unsqueeze(1)
+            if self.execution.cuda:
+                pase_chunks = pase_chunks.cuda()
             with torch.no_grad():
                 pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=2)
@@ -419,6 +421,8 @@ class SampleRNN:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000).unsqueeze(1)
+            if self.execution.cuda:
+                pase_chunks = pase_chunks.cuda()
             with torch.no_grad():
                 pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=2)
@@ -506,6 +510,8 @@ class SampleRNN:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000, fixed_start=True).unsqueeze(1)
+            if self.execution.cuda:
+                pase_chunks = pase_chunks.cuda()
             with torch.no_grad():
                 pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=2)
