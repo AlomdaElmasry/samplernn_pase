@@ -342,7 +342,7 @@ class SampleRNN:
         data_samples = self.quantizer.quantize(data_samples)
         data_samples_target = self.quantizer.quantize(data_samples_target)
 
-        # speakers_embeddings is (batch_size, speaker_embedding_size)
+        # Use one-hot embedding to identify each speaker
         if self.conf.conditionants['speaker_type'] == 'embedding':
             data_speakers_ids = torch.LongTensor([data_info_item['speaker']['index'] if data_info_item is not None
                                                   else 0 for data_info_item in data_info])
@@ -350,18 +350,25 @@ class SampleRNN:
                 data_speakers_ids = data_speakers_ids.cuda()
             data_conds_speakers = self.embedding_layer(data_speakers_ids)
 
-        # Use PASE pase extractor
-        elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
+        # Use PASE to identify each speaker
+        elif self.conf.conditionants['speaker_type'] == 'pase_seed':
+            speakers = [data_info_item['speaker'] if data_info_item is not None
+                        else 0 for data_info_item in data_info]
+            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000).unsqueeze(1)
+            with torch.no_grad():
+                pase_output = self.pase_encoder(pase_chunks)
+            data_conds_speakers = torch.mean(pase_output, dim=2)
+            data_conds_speakers.detach()
+
+        # Use PASE to identify each speaker and fine-tune it end-to-end
+        elif self.conf.conditionants['speaker_type'] == 'pase_trained':
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000).unsqueeze(1)
             if self.execution.cuda:
                 pase_chunks = pase_chunks.cuda()
-            if self.conf.conditionants['speaker_type'] == 'pase_seed':
-                with torch.no_grad():
-                    pase_output = self.pase_encoder(pase_chunks)
-                pase_output = pase_output.detach()
-                data_conds_speakers = torch.mean(pase_output, dim=2)
+            pase_output = self.pase_encoder(pase_chunks)
+            data_conds_speakers = torch.mean(pase_output, dim=2)
 
         # Propagate through the model
         data_samples_predicted = self.model(data_samples, data_conds_speakers, data_conds_utterances, data_model_reset)
@@ -399,7 +406,7 @@ class SampleRNN:
         data_samples = self.quantizer.quantize(data_samples)
         data_samples_target = self.quantizer.quantize(data_samples_target)
 
-        # speakers_embeddings is (batch_size, speaker_embedding_size)
+        # Use one-hot embedding to identify each speaker
         if self.conf.conditionants['speaker_type'] == 'embedding':
             data_speakers_ids = torch.LongTensor([data_info_item['speaker']['index'] if data_info_item is not None
                                                   else 0 for data_info_item in data_info])
@@ -407,13 +414,11 @@ class SampleRNN:
                 data_speakers_ids = data_speakers_ids.cuda()
             data_conds_speakers = self.embedding_layer(data_speakers_ids)
 
-        # Handle PASE encoder
+        # Use PASE to identify each speaker
         elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
             speakers = [data_info_item['speaker'] if data_info_item is not None
-                               else 0 for data_info_item in data_info]
+                        else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000).unsqueeze(1)
-            if self.execution.cuda:
-                pase_chunks = pase_chunks.cuda()
             with torch.no_grad():
                 pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=2)
@@ -488,13 +493,22 @@ class SampleRNN:
         # Decompose data
         data_samples, _, data_conds_speakers, data_conds_utterances, data_model_reset, data_info = data
 
-        # Get embeddings of the speakers
+        # Use one-hot embedding to identify each speaker
         if self.conf.conditionants['speaker_type'] == 'embedding':
             data_speakers_ids = torch.LongTensor([data_info_item['speaker']['index'] if data_info_item is not None
                                                   else 0 for data_info_item in data_info])
             if self.execution.cuda:
                 data_speakers_ids = data_speakers_ids.cuda()
-                data_conds_speakers = self.embedding_layer(data_speakers_ids)
+            data_conds_speakers = self.embedding_layer(data_speakers_ids)
+
+        # Use PASE to identify each speaker
+        elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
+            speakers = [data_info_item['speaker'] if data_info_item is not None
+                        else 0 for data_info_item in data_info]
+            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 160000, fixed_start=True).unsqueeze(1)
+            with torch.no_grad():
+                pase_output = self.pase_encoder(pase_chunks)
+            data_conds_speakers = torch.mean(pase_output, dim=2)
 
         # Propagate through the model
         with torch.no_grad():
