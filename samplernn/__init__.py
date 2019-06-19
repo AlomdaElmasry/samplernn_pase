@@ -505,7 +505,7 @@ class SampleRNN:
         elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
-            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 160000, fixed_start=True).unsqueeze(1)
+            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000, fixed_start=True).unsqueeze(1)
             with torch.no_grad():
                 pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=2)

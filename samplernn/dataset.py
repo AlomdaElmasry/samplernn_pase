@@ -193,7 +193,7 @@ class SampleRNNDataset(Dataset):
         }
 
     def get_random_chunk(self, speaker_id, chunk_length, fixed_start=False):
-        random_start = random.randint(0, self.data_wav_ram[speaker_id].size - chunk_length) if not fixed_start else 0
+        random_start = random.randint(0, self.data_wav_ram[speaker_id].size - chunk_length) if not fixed_start else 8000
         return self.data_wav_ram[speaker_id][random_start:random_start + chunk_length]
 
     def _get_model_len(self, utterance_wav_len_real: int):
