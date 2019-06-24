@@ -235,6 +235,31 @@ class SampleRNN:
             self.execution.tbx.add_scalar('test/precision', vu_afpr[2], self.epoch_n)
             self.execution.tbx.add_scalar('test/recall', vu_afpr[3], self.epoch_n)
 
+    def test_seed(self, seed_durations):
+
+        # Set the Loader in Generation Mode and Model in eval()
+        self.model.eval()
+
+        # Iterate over the list of epochs to test
+        for test_epoch in self.execution.checkpoint_epoch:
+
+            # Load checkpoint
+            self._load_checkpoint(epoch_n=test_epoch)
+
+            # Iterate over the SEED durations
+            for seed_duration in seed_durations:
+
+                # Propagate through Network
+                cc_mcd, f0_rmse, vu_afpr = self._step_test(
+                    data_info=self.test_data_loader.get_data_info(max_samples=100),
+                    pase_seed_duration=seed_duration
+                )
+
+                # Log results in TensorBoard
+                self.execution.tbx.add_scalar('test/{}s/mcd'.format(seed_duration), cc_mcd, self.epoch_n)
+                self.execution.tbx.add_scalar('test/{}s/f0_rmse'.format(seed_duration), f0_rmse, self.epoch_n)
+                self.execution.tbx.add_scalar('test/{}s/accuracy'.format(seed_duration), vu_afpr[0], self.epoch_n)
+
     def test_speaker_by_seed(self, speaker_id, seed_durations):
 
         # Set the Loader in Generation Mode and Model in eval()

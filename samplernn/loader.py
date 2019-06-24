@@ -130,11 +130,11 @@ class SampleRNNDataLoader(DataLoader):
             random_chunks[i, :] = self.dataset.get_random_chunk(speaker_id, chunk_length, fixed_start)
         return torch.Tensor(random_chunks)
 
-    def get_data_info(self, speaker_id=None):
+    def get_data_info(self, speaker_id=None, max_samples=np.inf):
         if speaker_id:
             return [data_item[3] for data_item in self.dataset if speaker_id == data_item[3]['utterance']['speaker_id']]
         else:
-            return [data_item[3] for data_item in self.dataset]
+            return [self.dataset[item_index][3] for item_index in range(min(self.dataset.__len__(), max_samples))]
 
     def set_exclude_utterances(self, include_data_info):
         all_uterances = self.get_data_info()

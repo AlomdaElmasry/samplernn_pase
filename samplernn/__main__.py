@@ -48,6 +48,12 @@ subparser_test.add_argument('--exp-name', required=True, help='Name of the exper
 subparser_test.add_argument('--checkpoint-epoch', type=int, nargs="*", required=False, default=0)
 
 # Create the subparser for the 'test' command
+subparser_test_seed = subparsers.add_parser('test_seed')
+subparser_test_seed.add_argument('--exp-name', required=True, help='Name of the experiment to model')
+subparser_test_seed.add_argument('--checkpoint-epoch', type=int, nargs="*", required=False, default=0)
+subparser_test_seed.add_argument('--seed-duration', type=int, nargs="*", required=True, default=60)
+
+# Create the subparser for the 'test' command
 subparser_test_speaker = subparsers.add_parser('test_speaker')
 subparser_test_speaker.add_argument('--exp-name', required=True, help='Name of the experiment to model')
 subparser_test_speaker.add_argument('--checkpoint-epoch', type=int, nargs="*", required=False, default=0)
@@ -117,6 +123,12 @@ elif args.command == 'test':
     execution.experiment.load()
     execution.log_execution_entry()
     SampleRNN(execution=execution).test()
+
+# Actions to perform with the 'test_seed' command
+elif args.command == 'test_seed':
+    execution.experiment.load()
+    execution.log_execution_entry()
+    SampleRNN(execution=execution).test_seed(seed_durations=args.seed_duration)
 
 # Actions to perform with the 'test_speaker' command
 elif args.command == 'test_speaker':
