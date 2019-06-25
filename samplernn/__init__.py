@@ -540,10 +540,6 @@ class SampleRNN:
                 pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=2)
 
-        print(hash(data_conds_speakers))
-        print(hash(data_conds_utterances))
-        exit()
-
         # Propagate through the model
         with torch.no_grad():
             data_samples_predicted = self.model(None, data_conds_speakers, data_conds_utterances, data_model_reset)
