@@ -250,14 +250,14 @@ class SampleRNN:
             for seed_duration in seed_durations:
                 # Propagate through Network
                 cc_mcd, f0_rmse, vu_afpr = self._step_test(
-                    data_info=self.test_data_loader.get_data_info(max_samples=100),
+                    data_info=self.test_data_loader.get_data_info(),
                     pase_seed_duration=seed_duration
                 )
 
                 # Log results in TensorBoard
-                self.execution.tbx.add_scalar('test/{}s/mcd'.format(seed_duration), cc_mcd, self.epoch_n)
-                self.execution.tbx.add_scalar('test/{}s/f0_rmse'.format(seed_duration), f0_rmse, self.epoch_n)
-                self.execution.tbx.add_scalar('test/{}s/accuracy'.format(seed_duration), vu_afpr[0], self.epoch_n)
+                self.execution.tbx.add_scalar('test/{}s/all/mcd'.format(seed_duration), cc_mcd, self.epoch_n)
+                self.execution.tbx.add_scalar('test/{}s/all/f0_rmse'.format(seed_duration), f0_rmse, self.epoch_n)
+                self.execution.tbx.add_scalar('test/{}s/all/accuracy'.format(seed_duration), vu_afpr[0], self.epoch_n)
 
     def test_speaker_by_seed(self, speaker_id, seed_durations):
 
@@ -484,9 +484,6 @@ class SampleRNN:
         Returns:
 
         """
-
-        a = 1
-
         # Remove items that have already been generated
         data_info_cleaned_samples = self.experiment.clean_generated_samples(
             data_info=data_info,
@@ -542,6 +539,10 @@ class SampleRNN:
             with torch.no_grad():
                 pase_output = self.pase_encoder(pase_chunks)
             data_conds_speakers = torch.mean(pase_output, dim=2)
+
+        print(hash(data_conds_speakers))
+        print(hash(data_conds_utterances))
+        exit()
 
         # Propagate through the model
         with torch.no_grad():
