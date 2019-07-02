@@ -14,8 +14,13 @@ def build_norm_layer(norm_type, param=None, num_feats=None):
     elif norm_type == 'snorm':
         spectral_norm(param)
         return None
+    elif norm_type == 'bsnorm':
+        spectral_norm(param)
+        return nn.BatchNorm1d(num_feats)
     elif norm_type == 'inorm':
-        return nn.InstanceNorm1d(num_feats)
+        return nn.InstanceNorm1d(num_feats, affine=False)
+    elif norm_type == 'affinorm':
+        return nn.InstanceNorm1d(num_feats, affine=True)
     elif norm_type is None:
         return None
     else:
@@ -26,6 +31,21 @@ def forward_norm(x, norm_layer):
         return norm_layer(x)
     else:
         return x
+
+def build_activation(activation, params, init=0):
+    if activation == 'prelu' or activation is None:
+        return nn.PReLU(params, init=init)
+    else:
+        return activation
+
+def forward_activation(activation, tensor):
+    if activation == 'glu':
+        # split tensor in two in channels dim
+        z, g = torch.chunk(tensor, 2, dim=1)
+        y = z * torch.sigmoid(g)
+        return y
+    else:
+        return activation(tensor)
 
 class NeuralBlock(nn.Module):
 
@@ -113,7 +133,7 @@ class Saver(object):
         print('Reading latest checkpoint from {}...'.format(ckpt_path))
         if not os.path.exists(ckpt_path):
             print('[!] No checkpoint found in {}'.format(self.save_path))
-            return False
+            return None
         else:
             with open(ckpt_path, 'r') as ckpt_f:
                 ckpts = json.load(ckpt_f)
@@ -156,6 +176,14 @@ class Saver(object):
             print('[*] Loaded weights')
             return True
 
+    def load_ckpt_step(self, curr_ckpt):
+        ckpt = torch.load(os.path.join(self.save_path,
+                                       'weights_' + \
+                                       curr_ckpt),
+                          map_location='cpu')
+        step = ckpt['step']
+        return step
+
     def load_pretrained_ckpt(self, ckpt_file, load_last=False, load_opt=True,
                              verbose=True):
         model_dict = self.model.state_dict() 
@@ -177,7 +205,7 @@ class Saver(object):
                    k in allowed_keys and v.size() == model_dict[k].size()}
         if verbose:
             print('Current Model keys: ', len(list(model_dict.keys())))
-            print('Loading Pt Model keys: ', len(list(pt_dict.keys())))
+            print('Current Pt keys: ', len(list(pt_dict.keys())))
             print('Loading matching keys: ', list(pt_dict.keys()))
         if len(pt_dict.keys()) != len(model_dict.keys()):
             print('WARNING: LOADING DIFFERENT NUM OF KEYS')
@@ -268,17 +296,21 @@ class GConv1DBlock(NeuralBlock):
 
     def __init__(self, ninp, fmaps,
                  kwidth, stride=1, norm_type=None,
+                 act='prelu',
                  name='GConv1DBlock'):
         super().__init__(name=name)
-        self.conv = nn.Conv1d(ninp, fmaps, kwidth, stride=stride)
+        if act is not None and act == 'glu':
+            Wfmaps = 2 * fmaps
+        else:
+            Wfmaps = fmaps
+        self.conv = nn.Conv1d(ninp, Wfmaps, kwidth, stride=stride)
         self.norm = build_norm_layer(norm_type, self.conv, fmaps)
-        self.act = nn.PReLU(fmaps, init=0)
+        self.act = build_activation(act, fmaps)
         self.kwidth = kwidth
         self.stride = stride
 
-
     def forward(self, x):
-        if self.stride > 1:
+        if self.stride > 1 or self.kwidth % 2 == 0:
             P = (self.kwidth // 2 - 1,
                  self.kwidth // 2)
         else:
@@ -286,8 +318,9 @@ class GConv1DBlock(NeuralBlock):
                  self.kwidth // 2)
         x_p = F.pad(x, P, mode='reflect')
         h = self.conv(x_p)
+        h = forward_activation(self.act, h)
         h = forward_norm(h, self.norm)
-        h = self.act(h)
+        #h = self.act(h)
         return h
 
 class GDeconv1DBlock(NeuralBlock):
@@ -297,17 +330,18 @@ class GDeconv1DBlock(NeuralBlock):
                  act=None,
                  name='GDeconv1DBlock'):
         super().__init__(name=name)
+        if act is not None and act == 'glu':
+            Wfmaps = 2 * fmaps
+        else:
+            Wfmaps = fmaps
         pad = max(0, (stride - kwidth)//-2)
-        self.deconv = nn.ConvTranspose1d(ninp, fmaps,
+        self.deconv = nn.ConvTranspose1d(ninp, Wfmaps,
                                          kwidth, 
                                          stride=stride,
                                          padding=pad)
         self.norm = build_norm_layer(norm_type, self.deconv,
                                      fmaps)
-        if act is not None:
-            self.act = getattr(nn, act)()
-        else:
-            self.act = nn.PReLU(fmaps, init=0)
+        self.act = build_activation(act, fmaps)
         self.kwidth = kwidth
         self.stride = stride
 
@@ -315,9 +349,47 @@ class GDeconv1DBlock(NeuralBlock):
         h = self.deconv(x)
         if self.kwidth % 2 != 0 and self.stride < self.kwidth:
             h = h[:, :, :-1]
+        h = forward_activation(self.act, h)
         h = forward_norm(h, self.norm)
-        h = self.act(h)
+        #h = self.act(h)
         return h
+
+class ResBasicBlock1D(NeuralBlock):
+    """ Adapted from
+        https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
+    """
+    expansion = 1
+
+    def __init__(self, inplanes, planes, kwidth=3, 
+                 dilation=1, norm_layer=None, name='ResBasicBlock1D'):
+        super().__init__(name=name)
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm1d
+
+        # compute padding given dilation factor
+        P  = (kwidth // 2) * dilation
+        self.conv1 = nn.Conv1d(inplanes, planes, kwidth,
+                               stride=1, padding=P,
+                               bias=False, dilation=dilation)
+        self.bn1 = norm_layer(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv1d(planes, planes, kwidth,
+                               padding=P, dilation=dilation,
+                               bias=False)
+        self.bn2 = norm_layer(planes)
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out += identity
+        out = self.relu(out)
+        return out
 
 class ResARModule(NeuralBlock):
 
@@ -619,27 +691,103 @@ class SincConv_fast(nn.Module):
                         padding=0, dilation=self.dilation,
                         bias=None, groups=1) 
 
+class FeResBlock(NeuralBlock):
+
+    def __init__(self, num_inputs,
+                 fmaps, kwidth, 
+                 dilation,
+                 pad_mode='reflect',
+                 act=None,
+                 norm_type='bnorm',
+                 name='FeResBlock'):
+        super().__init__(name=name)
+        if act is not None and act == 'glu':
+            Wfmaps = 2 * fmaps
+        else:
+            Wfmaps = fmaps
+        self.num_inputs = num_inputs
+        self.fmaps = fmaps
+        self.kwidth = kwidth
+        # stride is ignored for no downsampling is
+        # possible in FeResBlock
+        self.stride = 1
+        self.dilation = dilation
+        self.pad_mode = pad_mode
+        self.conv1 = nn.Conv1d(num_inputs,
+                               Wfmaps, kwidth,
+                               stride=1,
+                               dilation=dilation)
+        self.norm1 = build_norm_layer(norm_type,
+                                      self.conv1,
+                                      fmaps)
+        assert self.norm1 is not None
+        self.act1 = build_activation(act, fmaps)
+        self.conv2 = nn.Conv1d(fmaps, Wfmaps,
+                               kwidth, stride=1,
+                               dilation=dilation)
+        self.norm2 = build_norm_layer(norm_type,
+                                      self.conv2,
+                                      fmaps)
+        assert self.norm2 is not None
+        self.act2 = build_activation(act, fmaps)
+        if self.num_inputs != self.fmaps:
+            # build projection layer
+            self.resproj = nn.Conv1d(self.num_inputs,
+                                     self.fmaps, 1,
+                                     bias=False)
+
+    def forward(self, x):
+        # compute pad factor
+        if self.kwidth % 2 == 0:
+            if self.dilation > 1:
+                raise ValueError('Not supported dilation with even kwdith')
+            P = (self.kwidth // 2 - 1,
+                 self.kwidth // 2)
+        else:
+            pad = (self.kwidth // 2) * (self.dilation - 1) + \
+                    (self.kwidth // 2)
+            P = (pad, pad)
+        identity = x
+        x = F.pad(x, P, mode=self.pad_mode)
+        h = self.conv1(x)
+        h = forward_activation(self.act1, h)
+        h = forward_norm(h, self.norm1)
+        h = F.pad(h, P, mode=self.pad_mode)
+        h = self.conv2(h)
+        h = forward_activation(self.act2, h)
+        if hasattr(self, 'resproj'):
+            identity = self.resproj(identity)
+        h = h + identity
+        h = forward_norm(h, self.norm2)
+        return h
 
 class FeBlock(NeuralBlock):
 
     def __init__(self, num_inputs,
                  fmaps, kwidth, stride,
+                 dilation,
                  pad_mode='reflect',
+                 act=None,
                  norm_type=None,
                  sincnet=False,
                  sr=16000,
                  name='FeBlock'):
         super().__init__(name=name)
+        if act is not None and act == 'glu':
+            Wfmaps = 2 * fmaps
+        else:
+            Wfmaps = fmaps
         self.num_inputs = num_inputs
         self.fmaps = fmaps
         self.kwidth = kwidth
         self.stride = stride
+        self.dilation = dilation
         self.pad_mode = pad_mode
         self.sincnet = sincnet
         if sincnet:
             # only one-channel signal can be analyzed
             assert num_inputs == 1, num_inputs
-            self.conv = SincConv_fast(1, fmaps,
+            self.conv = SincConv_fast(1, Wfmaps,
                                       kwidth, 
                                       sample_rate=sr,
                                       padding='SAME',
@@ -647,30 +795,35 @@ class FeBlock(NeuralBlock):
                                       pad_mode=pad_mode)
         else:
             self.conv = nn.Conv1d(num_inputs,
-                                  fmaps,
+                                  Wfmaps,
                                   kwidth,
-                                  stride)
+                                  stride,
+                                  dilation=dilation)
         if not (norm_type == 'snorm' and sincnet):
             self.norm = build_norm_layer(norm_type,
                                          self.conv,
-                                         fmaps)
-        self.act = nn.PReLU(fmaps)
-
+                                         Wfmaps)
+        self.act = build_activation(act, fmaps)
 
     def forward(self, x):
         if self.kwidth > 1 and not self.sincnet:
             # compute pad factor
-            if self.stride > 1:
+            if self.stride > 1 or self.kwidth % 2 == 0:
+                if self.dilation > 1:
+                    raise ValueError('Cannot make dilated convolution with '
+                                     'stride > 1')
                 P = (self.kwidth // 2 - 1,
                      self.kwidth // 2)
             else:
-                P = (self.kwidth // 2,
-                     self.kwidth // 2)
+                pad = (self.kwidth // 2) * (self.dilation - 1) + \
+                        (self.kwidth // 2)
+                P = (pad, pad)
             x = F.pad(x, P, mode=self.pad_mode)
         h = self.conv(x)
         if hasattr(self, 'norm'):
             h = forward_norm(h, self.norm)
-        h = self.act(h)
+        h = forward_activation(self.act, h)
+        #h = self.act(h)
         return h
 
 
@@ -744,7 +897,6 @@ class VQEMA(nn.Module):
         return loss, Q.permute(0, 2, 1).contiguous(), PP, enc
 
 
-
 if __name__ == '__main__':
     """
     import matplotlib
@@ -796,9 +948,20 @@ if __name__ == '__main__':
     #feblock = FeBlock(1, 100, 251, 1)
     #y = feblock(x)
     #print('y size: ', y.size())
-    vq = VQEMA(50, 100, 0.25, 0.99)
-    x = torch.randn(10, 100, 160)
-    _, Q, PP , _ = vq(x)
+    #vq = VQEMA(50, 100, 0.25, 0.99)
+    #x = torch.randn(10, 100, 160)
+    #_, Q, PP , _ = vq(x)
+#    conv = SincConv_fast(1, 10,
+#                         251, 
+#                         sample_rate=16000,
+#                         padding='SAME',
+#                         stride=160)
+    #conv = GConv1DBlock(1, 10, 21, 1)
+    conv = FeResBlock(1, 10, 3, 1, 1)
+    x = torch.randn(1, 1, 10)
+    print(conv)
+    y = conv(x)
+    print(y.size())
 
 
 

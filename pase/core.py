@@ -1,13 +1,11 @@
-from .modules import *
-from .frontend import *
 from .minions import *
 from ..losses import *
-from tensorboardX import SummaryWriter
+from ..log import *
+#from tensorboardX import SummaryWriter
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 import numpy as np
 import random
-import json
 import timeit
 import os
 
@@ -113,6 +111,7 @@ class Waveminionet(Model):
         bsize = cfg['batch_size']
         save_path = cfg['save_path']
         log_freq = cfg['log_freq']
+        # Adversarial auto-encoder hyperparams
         warmup_epoch = cfg['warmup']
         zinit_weight = cfg['zinit_weight']
         zinc = cfg['zinc']
@@ -121,7 +120,8 @@ class Waveminionet(Model):
             frontend = self.frontend_dp
         else:
             frontend = self.frontend
-        writer = SummaryWriter(save_path)
+        # Make the log writer(s)
+        writer = LogWriter(save_path, log_types=cfg['log_types'])
         bpe = cfg['bpe'] if 'bpe' in cfg else len(dloader)
         print('=' * 50)
         print('Beginning training...')
@@ -132,6 +132,11 @@ class Waveminionet(Model):
         print('Randomized minion training: ', rndmin_train)
         feopt = getattr(optim, cfg['fe_opt'])(self.frontend.parameters(), 
                                               lr=cfg['fe_lr'])
+        # Make the saver array. Each one will refer to one model. Init
+        # with frontend model and optimizer
+        savers = [Saver(self.frontend, save_path, 
+                        max_ckpts=cfg['max_ckpts'],
+                        optimizer=feopt, prefix='PASE-')]
         lrdecay = cfg['lrdecay']
         if lrdecay > 0:
             fesched = optim.lr_scheduler.StepLR(feopt,
@@ -146,13 +151,16 @@ class Waveminionet(Model):
             zopt = getattr(optim, cfg['min_opt'])(self.z_minion.parameters(), 
                                                   lr=z_lr)
             if lrdecay > 0:
-                zsched = optim.lr_scheduler.ReduceLROnPlateau(zopt,
-                                                              mode='min',
-                                                              factor=lrdecay,
-                                                              verbose=True)
+                #zsched = optim.lr_scheduler.ReduceLROnPlateau(zopt,
+                #                                              mode='min',
+                #                                              factor=lrdecay,
+                #                                              verbose=True)
                 zsched = optim.lr_scheduler.StepLR(zopt,
                                                    step_size=cfg['lrdec_step'],
                                                    gamma=cfg['lrdecay'])
+            savers.append(Saver(self.z_minion,
+                                save_path, max_ckpts=cfg['max_ckpts'],
+                                optimizer=zopt, prefix='Zminion-'))
 
         if 'min_lrs' in cfg:
             min_lrs = cfg['min_lrs']
@@ -178,15 +186,46 @@ class Waveminionet(Model):
                                                step_size=cfg['lrdec_step'],
                                                gamma=cfg['lrdecay'])
                 minscheds[minion.name] = minsched
-
+            savers.append(Saver(minion, save_path, max_ckpts=cfg['max_ckpts'],
+                                optimizer=minopts[minion.name],
+                                prefix='M-{}-'.format(minion.name)))
 
         minions_run = self.minions
         if hasattr(self, 'minions_dp'):
             minions_run = self.minions_dp
 
         min_global_steps = {}
-        global_step = 0
-        for epoch_ in range(epoch):
+        if cfg['ckpt_continue']:
+            giters = 0
+            for saver in savers:
+                # try loading all savers last state if not forbidden is active
+                try:
+                    state = saver.read_latest_checkpoint()
+                    giter_ = saver.load_ckpt_step(state)
+                    print('giter_ found: ', giter_)
+                    # assert all ckpts happened at last same step
+                    if giters == 0:
+                        giters = giter_
+                    else:
+                        assert giters == giter_, giter_
+                    saver.load_pretrained_ckpt(os.path.join(save_path,
+                                                            'weights_' + state), 
+                                               load_last=True)
+                except TypeError:
+                    break
+
+            global_step = giters
+            # redefine num epochs depending on where we left it
+            epoch_beg = int(global_step / bpe)
+            epoch = epoch - epoch_beg
+        else:
+            epoch_beg = 0
+            global_step = 0
+
+        print('Beginning step of training: ', global_step)
+        print('Looping for {} epochs: '.format(epoch))
+
+        for epoch_ in range(epoch_beg, epoch_beg + epoch):
             self.train()
             timings = []
             beg_t = timeit.default_timer()
@@ -194,8 +233,13 @@ class Waveminionet(Model):
             if epoch_ + 1 == warmup_epoch and hasattr(self, 'z_minion'):
                 zweight = zinit_weight
 
+            iterator = iter(dloader)
             for bidx in range(1, bpe + 1):
-                batch = next(dloader.__iter__())
+                try:
+                    batch = next(iterator)
+                except StopIteration:
+                    iterator = iter(dloader)
+                    batch = next(iterator)
                 feopt.zero_grad()
                 fe_h = {}
                 # forward chunk (alone) through frontend
@@ -208,6 +252,7 @@ class Waveminionet(Model):
                     if self.vq:
                         vq_loss, fe_Q, \
                         vq_pp, vq_idx = frontend(triplet.to(device))
+                        vq_loss = frontend.vq_loss_weight * vq_loss
                         fe_h['triplet'] = fe_Q
                     else:
                         fe_h['triplet'] = frontend(triplet.to(device))
@@ -287,6 +332,10 @@ class Waveminionet(Model):
                     greal_loss = torch.zeros(1)
                 global_step += 1
 
+                t_loss = None
+                if self.vq:
+                    # Backprop VQ related stuff
+                    t_loss = vq_loss
                 # backprop time
                 if rndmin_train:
                     min_names = list(min_h.keys())
@@ -295,7 +344,9 @@ class Waveminionet(Model):
                     y_ = min_h[rnd_min]
                     minion = minions_run[self.min2idx[rnd_min]]
                     y_lab = batch[rnd_min].to(device)
-                    loss = self.minions[self.min2idx[rnd_min]].loss(y_, y_lab)
+                    lweight = minion.loss_weight
+                    loss = minion.loss(y_, y_lab)
+                    loss = lweight * loss
                     loss.backward()
                     if rnd_min not in min_loss:
                         min_loss[rnd_min] = []
@@ -312,21 +363,27 @@ class Waveminionet(Model):
                         minion = minions_run[self.min2idx[min_name]]
                         minopts[min_name].zero_grad()
                         y_lab = batch[min_name].to(device)
-                        loss = self.minions[self.min2idx[min_name]].loss(y_, y_lab)
-                        loss.backward(retain_graph=True)
+                        lweight = minion.loss_weight
+                        loss = minion.loss(y_, y_lab)
+                        loss = lweight * loss
+                        try:
+                            t_loss += loss
+                        except TypeError:
+                            t_loss = loss
+                        #loss.backward(retain_graph=True)
                         if min_name not in min_loss:
                             min_loss[min_name] = []
                         if min_name not in min_global_steps:
                             min_global_steps[min_name] = 0
                         min_loss[min_name].append(loss.item())
                         min_global_steps[min_name] += 1
+                        #minopts[min_name].step()
+                    t_loss.backward()
+                    for min_name, y_ in min_h.items():
                         minopts[min_name].step()
                 end_t = timeit.default_timer()
                 timings.append(end_t - beg_t)
                 beg_t = timeit.default_timer()
-                if self.vq:
-                    # Backprop VQ related stuff
-                    vq_loss.backward()
                 feopt.step()
                 if bidx % log_freq == 0 or bidx >= bpe:
                     print('-' * 50)
@@ -404,16 +461,19 @@ class Waveminionet(Model):
                 for mi, minion in enumerate(self.minions, start=1):
                     minscheds[minion.name].step()
 
+            # Save plain frontend weights 
             torch.save(self.frontend.state_dict(),
                        os.path.join(save_path,
                                     'FE_e{}.ckpt'.format(epoch_)))
-            torch.save(self.state_dict(),
-                       os.path.join(save_path,
-                                    'fullmodel_e{}.ckpt'.format(epoch_)))
-
+            # Run through each saver to save model and optimizer
+            for saver in savers:
+                saver.save(saver.prefix[:-1], global_step)
+            #torch.save(self.state_dict(),
+            #           os.path.join(save_path,
+            #                        'fullmodel_e{}.ckpt'.format(epoch_)))
 
     def eval_(self, dloader, batch_size, bpe, log_freq,
-             epoch_idx=0, writer=None, device='cpu'):
+              epoch_idx=0, writer=None, device='cpu'):
         self.eval()
         with torch.no_grad():
             bsize = batch_size
@@ -424,8 +484,14 @@ class Waveminionet(Model):
             timings = []
             beg_t = timeit.default_timer()
             min_loss = {}
+
+            iterator = iter(dloader)
             for bidx in range(1, bpe + 1):
-                batch = next(dloader.__iter__())
+                try:
+                    batch = next(iterator)
+                except StopIteration:
+                    iterator = iter(dloader)
+                    batch = next(iterator)
                 # Build chunk keys to know what to encode
                 chunk_keys = ['chunk']
                 if self.mi_fwd:
@@ -481,7 +547,8 @@ class Waveminionet(Model):
                 # Compute all minion losses
                 for min_name, y_ in min_h.items():
                     y_lab = batch[min_name].to(device)
-                    loss = self.minions[self.min2idx[min_name]].loss(y_, y_lab)
+                    lweight = self.minions[self.min2idx[min_name]].loss_weight
+                    loss = lweight * self.minions[self.min2idx[min_name]].loss(y_, y_lab)
                     if min_name not in min_loss:
                         min_loss[min_name] = []
                     min_loss[min_name].append(loss.item())
@@ -522,35 +589,35 @@ class Waveminionet(Model):
             sdict[k] = v
         return sdict
 
+
 if __name__ == '__main__':
-    import json
     wmodel = Waveminionet(
-                          minions_cfg=[
-                              {'num_outputs':1,
-                               'dropout':0.2,
-                               'name':'chunk',
-                               'type':'decoder',
-                              },
-                              {'num_outputs':257,
-                               'dropout':0.2,
-                               'name':'lps',
-                              },
-                              {'num_outputs':40,
-                               'dropout':0.2,
-                               'name':'mfcc'
-                              },
-                              {'num_outputs':4,
-                               'dropout':0.2,
-                               'name':'prosody'
-                              },
-                              #{'num_outputs':1,
-                              # 'dropout':0.2,
-                              # 'name':'mi',
-                              # 'keys':['chunk',
-                              #         'chunk_ctxt',
-                              #         'chunk_rand']
-                              #},
-                          ]
+        minions_cfg=[
+            {'num_outputs':1,
+             'dropout':0.2,
+             'name':'chunk',
+             'type':'decoder',
+             },
+            {'num_outputs':257,
+             'dropout':0.2,
+             'name':'lps',
+             },
+            {'num_outputs':40,
+             'dropout':0.2,
+             'name':'mfcc'
+             },
+            {'num_outputs':4,
+             'dropout':0.2,
+             'name':'prosody'
+             },
+            #{'num_outputs':1,
+            # 'dropout':0.2,
+            # 'name':'mi',
+            # 'keys':['chunk',
+            #         'chunk_ctxt',
+            #         'chunk_rand']
+            #},
+        ]
                          )
     print(wmodel)
     x = torch.randn(1, 1, 8000)

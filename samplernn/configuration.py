@@ -109,7 +109,7 @@ class SampleRNNConfiguration:
 
     def load_file(self, config_file_path: str, initialize_computed_parameters: bool = False):
         with open(config_file_path, 'r') as config_file:
-            config_content = yaml.load(config_file)
+            config_content = yaml.load(config_file, Loader=yaml.FullLoader)
             for conf_key, conf_val in config_content.items():
                 if hasattr(self, conf_key):
                     setattr(self, conf_key, conf_val)
