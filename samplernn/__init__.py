@@ -63,9 +63,12 @@ class SampleRNN:
             self.pase_encoder = None
 
         # Handle the use of PASE as encoder
-        elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
+        elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained', 'pase_trained_noinit']:
             self.embedding_layer = None
             self.pase_encoder = pase.frontend.wf_builder(self.conf.pase['config_file_path'])
+
+        # Load Initial Data for PASE
+        if self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
             self.pase_encoder.load_pretrained(self.conf.pase['trained_model_path'], load_last=True, verbose=True)
 
         # Create new model with the desired configuration and Quantizer
@@ -84,7 +87,7 @@ class SampleRNN:
         params_to_optimize = list(self.model.parameters())
         if self.conf.conditionants['speaker_type'] == 'embedding':
             params_to_optimize += list(self.embedding_layer.parameters())
-        if self.conf.conditionants['speaker_type'] == 'pase_trained':
+        if self.conf.conditionants['speaker_type'] in ['pase_trained', 'pase_trained_noinit']:
             params_to_optimize += list(self.pase_encoder.parameters())
         self.optimizer = torch.optim.Adam(params=params_to_optimize, lr=self.conf.training['lr'])
 
@@ -107,7 +110,7 @@ class SampleRNN:
             self.model = self.model.cuda()
             if self.conf.conditionants['speaker_type'] == 'embedding':
                 self.embedding_layer = self.embedding_layer.cuda()
-            elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
+            elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained', 'pase_trained_noinit']:
                 self.pase_encoder = self.pase_encoder.cuda()
 
             # Move each state to CUDA
@@ -387,7 +390,7 @@ class SampleRNN:
             data_conds_speakers.detach()
 
         # Use PASE to identify each speaker and fine-tune it end-to-end
-        elif self.conf.conditionants['speaker_type'] == 'pase_trained':
+        elif self.conf.conditionants['speaker_type'] in ['pase_trained', 'pase_trained_noinit']:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speakers, 1).unsqueeze(1)
@@ -441,7 +444,7 @@ class SampleRNN:
             data_conds_speakers = self.embedding_layer(data_speakers_ids)
 
         # Use PASE to identify each speaker
-        elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
+        elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained', 'pase_trained_noinit']:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speakers, 1).unsqueeze(1)
@@ -529,7 +532,7 @@ class SampleRNN:
             data_conds_speakers = self.embedding_layer(data_speakers_ids)
 
         # Use PASE to identify each speaker
-        elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
+        elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained', 'pase_trained_noinit']:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
             pase_chunks = self.val_data_loader.get_random_chunks(speakers, pase_seed_duration,

@@ -683,7 +683,6 @@ class SampleRNNModel(torch.nn.Module):
 
         # Iterate over the samples
         for generated_sample in range(self.conf.architecture['frame_size'], generated_sequences.shape[1]):
-            break
             # Compute conds index
             conds_indx, _ = divmod(generated_sample, self.conf.architecture['frame_size'])
             conds_indx -= 1
