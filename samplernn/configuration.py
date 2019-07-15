@@ -165,5 +165,5 @@ class SampleRNNConfiguration:
         self.architecture['receptive_field'] = self.architecture['frame_size'] * self.architecture['sequence_length']
 
     def _validate_config(self):
-        assert self.conditionants['speaker_type'] in ['embedding', 'pase_seed', 'pase_trained']
+        assert self.conditionants['speaker_type'] in ['embedding', 'pase_seed', 'pase_trained', 'pase_trained_noinit']
         assert self.conditionants['utterance_type'] in ['acoustic', 'linguistic', 'linguistic_lf0']
