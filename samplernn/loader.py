@@ -123,6 +123,17 @@ class SampleRNNDataLoader(DataLoader):
         return samples, None, conds_speakers, conds_utterances, model_reset, info
 
     def get_random_chunks(self, speakers, chunk_length, fixed_start=False):
+        """Gets a random chunk for all the `speakers`.
+
+        Args:
+            speakers (list): list of speakers to obtain the chunk from
+            chunk_length (int): chunk length, in seconds
+            fixed_start (bool): whether to always return the same chunk for a given speaker
+
+        Returns:
+            torch.Tensor: chunks of the speakers
+        """
+        chunk_length = chunk_length * 16000
         random_chunks = np.zeros((len(speakers), chunk_length))
         speaker_ids = []
         for i, speaker in enumerate(speakers):

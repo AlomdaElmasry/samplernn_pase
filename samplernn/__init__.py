@@ -250,7 +250,7 @@ class SampleRNN:
             for seed_duration in seed_durations:
                 # Propagate through Network
                 cc_mcd, f0_rmse, vu_afpr = self._step_test(
-                    data_info=self.test_data_loader.get_data_info(),
+                    data_info=self.test_data_loader.get_data_info(max_samples=50),
                     pase_seed_duration=seed_duration
                 )
 
@@ -378,7 +378,7 @@ class SampleRNN:
         elif self.conf.conditionants['speaker_type'] == 'pase_seed':
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
-            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000).unsqueeze(1)
+            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 1).unsqueeze(1)
             if self.execution.cuda:
                 pase_chunks = pase_chunks.cuda()
             with torch.no_grad():
@@ -390,7 +390,7 @@ class SampleRNN:
         elif self.conf.conditionants['speaker_type'] == 'pase_trained':
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
-            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000).unsqueeze(1)
+            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 1).unsqueeze(1)
             if self.execution.cuda:
                 pase_chunks = pase_chunks.cuda()
             pase_output = self.pase_encoder(pase_chunks)
@@ -444,7 +444,7 @@ class SampleRNN:
         elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
-            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 16000).unsqueeze(1)
+            pase_chunks = self.val_data_loader.get_random_chunks(speakers, 1).unsqueeze(1)
             if self.execution.cuda:
                 pase_chunks = pase_chunks.cuda()
             with torch.no_grad():
@@ -532,8 +532,8 @@ class SampleRNN:
         elif self.conf.conditionants['speaker_type'] in ['pase_seed', 'pase_trained']:
             speakers = [data_info_item['speaker'] if data_info_item is not None
                         else 0 for data_info_item in data_info]
-            pase_chunks = self.val_data_loader.get_random_chunks(speakers, pase_seed_duration, fixed_start=True) \
-                .unsqueeze(1)
+            pase_chunks = self.val_data_loader.get_random_chunks(speakers, pase_seed_duration,
+                                                                 fixed_start=True).unsqueeze(1)
             if self.execution.cuda:
                 pase_chunks = pase_chunks.cuda()
             with torch.no_grad():
