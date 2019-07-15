@@ -253,7 +253,7 @@ class SampleRNN:
             for seed_duration in seed_durations:
                 # Propagate through Network
                 cc_mcd, f0_rmse, vu_afpr = self._step_test(
-                    data_info=self.test_data_loader.get_data_info(max_samples=50),
+                    data_info=self.test_data_loader.get_data_info(),
                     pase_seed_duration=seed_duration
                 )
 
