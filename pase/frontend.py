@@ -36,14 +36,17 @@ class WaveFe(Model):
                  emb_dim=256,
                  activation=None,
                  rnn_pool=False,
+                 rnn_layers=1,
+                 rnn_dropout=0,
+                 rnn_type='qrnn',
                  vq_K=None,
                  vq_beta=0.25,
                  vq_gamma=0.99,
-                 vq_loss_weight=1.,
                  norm_out=False,
                  tanh_out=False,
                  resblocks=False,
                  denseskips=False,
+                 densemerge='sum',
                  name='WaveFe'):
         super().__init__(name=name) 
         # apply sincnet at first layer
@@ -51,11 +54,13 @@ class WaveFe(Model):
         self.kwidths = kwidths
         self.strides = strides
         self.fmaps = fmaps
+        self.densemerge = densemerge
         if denseskips:
             self.denseskips = nn.ModuleList()
         self.blocks = nn.ModuleList()
         assert len(kwidths) == len(strides)
         assert len(strides) == len(fmaps)
+        concat_emb_dim = emb_dim
         ninp = num_inputs
         for n, (kwidth, stride, dilation, fmap) in enumerate(zip(kwidths, 
                                                                  strides,
@@ -81,22 +86,26 @@ class WaveFe(Model):
             if denseskips and n < len(kwidths):
                 # add projection adapter 
                 self.denseskips.append(nn.Conv1d(fmap, emb_dim, 1, bias=False))
+                if densemerge == 'concat':
+                    concat_emb_dim += emb_dim
             ninp = fmap
         # last projection
         if rnn_pool:
-            self.rnn = nn.GRU(fmap, emb_dim // 2, bidirectional=True, 
-                              batch_first=True)
-            self.W = nn.Linear(emb_dim, emb_dim)
+            self.rnn = build_rnn_block(fmap, emb_dim // 2,
+                                       rnn_layers=rnn_layers,
+                                       rnn_type=rnn_type,
+                                       bidirectional=True,
+                                       dropout=rnn_dropout)
+            self.W = nn.Conv1d(emb_dim, emb_dim, 1)
         else:
             self.W = nn.Conv1d(fmap, emb_dim, 1)
-        self.emb_dim = emb_dim
+        self.emb_dim = concat_emb_dim
         self.rnn_pool = rnn_pool
         if vq_K is not None and vq_K > 0:
             self.quantizer = VQEMA(vq_K, self.emb_dim,
                                    vq_beta, vq_gamma)
         else:
             self.quantizer = None
-        self.vq_loss_weight = vq_loss_weight
         # ouptut vectors are normalized to norm^2 1
         if norm_out:
             if norm_type == 'bnorm':
@@ -105,31 +114,56 @@ class WaveFe(Model):
                 self.norm_out = nn.InstanceNorm1d(self.emb_dim)
         self.tanh_out = tanh_out
 
+    def fuse_skip(self, input_, skip):
+        dfactor = skip.shape[2] // input_.shape[2]
+
+        if dfactor > 1:
+            # downsample skips
+            # [B, F, T]
+            maxlen = input_.shape[2] * dfactor
+            skip = skip[:, :, :maxlen]
+            bsz, feats, slen = skip.shape
+            skip_re = skip.view(bsz, feats, slen // dfactor, dfactor)
+            skip = torch.mean(skip_re, dim=3)
+        if self.densemerge == 'concat':
+            return torch.cat((input_, skip), dim=1)
+        elif self.densemerge == 'sum':
+            return input_ + skip
+        else:
+            raise TypeError('Unknown densemerge: ', self.densemerge)
         
     def forward(self, x):
         h = x
         denseskips = hasattr(self, 'denseskips')
         if denseskips:
-            dskips = None
+            #dskips = None
+            dskips = []
         for n, block in enumerate(self.blocks):
             h = block(h)
             if denseskips and (n + 1) < len(self.blocks):
                 # denseskips happen til the last but one layer
                 # til the embedding one
                 proj = self.denseskips[n]
+                dskips.append(proj(h))
+                """
                 if dskips is None:
                     dskips = proj(h)
                 else:
-                    dskips = dskips + proj(h)
+                    h_proj = proj(h)
+                    dskips = self.fuse_skip(h_proj, dskips)
+                """
         if self.rnn_pool:
-            ht, _ = self.rnn(h.transpose(1, 2))
-            y = self.W(ht) 
-            y = y.transpose(1, 2)
-        else:
-            y = self.W(h)
+            h = h.transpose(1, 2).transpose(0, 1)
+            h, _ = self.rnn(h)
+            h = h.transpose(0, 1).transpose(1, 2)
+            #y = self.W(h) 
+        #else:
+        y = self.W(h)
         if denseskips:
-            # sum all dskips contributions in the embedding
-            y = y + dskips
+            for dskip in dskips:
+                # sum all dskips contributions in the embedding
+                y = self.fuse_skip(y, dskip)
+            #y = self.fuse_skip(y, dskips)
         if hasattr(self, 'norm_out'):
             y = self.norm_out(y)
         if self.tanh_out:
