@@ -27,7 +27,7 @@ class SampleRNN:
     pase_encoder: pase.frontend.WaveFe
     model: SampleRNNModel
     optimizer: torch.optim.Optimizer
-    lr_scheduler: torch.optim.lr_scheduler.StepLR
+    lr_scheduler: torch.optim.lr_scheduler.ReduceLROnPlateau
 
     train_data_loader: SampleRNNDataLoader
     val_data_loader: SampleRNNDataLoader
