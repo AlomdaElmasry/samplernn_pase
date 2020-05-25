@@ -3,13 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Log files
-*.log
+# MacOS .DS_Store
+.DS_Store
 
-# Executable files
-*.sh
-
-# virtualenv
+# Virtual Environment
 .venv
 venv/
 ENV/
@@ -17,14 +14,10 @@ ENV/
 # Pycharm Project
 .idea/
 
+# Data Folder
+data/*
+!data/.gitkeep
+
 # Experiments Folder
 experiments/*
 !experiments/.gitkeep
-
-# Data Main file
-data.main.pkl
-
-# Config File
-global.config.yml
-split.config.yml
-model.config.yml
