@@ -48,7 +48,7 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
             if buffer_item is None:
                 continue
             self.reset_buffer[buffer_index] = False
-            if buffer_item[0].shape[0] == self.frame_size or buffer_item[1].shape[0] == 0:
+            if buffer_item[0].shape[0] == self.dataset.frame_size or buffer_item[1].shape[0] == 0:
                 self.buffer[buffer_index] = None
                 self.reset_buffer[buffer_index] = None
 
