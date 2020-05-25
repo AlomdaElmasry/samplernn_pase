@@ -23,7 +23,7 @@ class SampleRNNPASERunner(skeltorch.Runner):
             rnn_hidden_size=self.experiment.configuration.get('model', 'rnn_hidden_size'),
             q_type_ulaw=self.experiment.configuration.get('model', 'q_type_ulaw'),
             q_levels=self.experiment.configuration.get('model', 'q_levels')
-        )
+        ).to(device)
 
     def init_optimizer(self, device):
         self.optimizer = torch.optim.Adam(
