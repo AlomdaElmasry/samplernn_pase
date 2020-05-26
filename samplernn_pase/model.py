@@ -192,12 +192,9 @@ class SampleRNNModel(torch.nn.Module):
         ]
 
     def _set_rnn_states(self, new_hidden_state_tensor, frame_level_layer, reset):
-        last_hidden_state = 0
         for reset_index, reset_element in enumerate(reset):
             if reset_element == 0 or reset_element == 1:
-                self.rnn_states[frame_level_layer][reset_index] = \
-                    new_hidden_state_tensor[:, last_hidden_state, :]
-                last_hidden_state += 1
+                self.rnn_states[frame_level_layer][reset_index] = new_hidden_state_tensor[:, reset_index, :]
             else:
                 self.rnn_states[frame_level_layer][reset_index] = None
 
@@ -207,15 +204,6 @@ class SampleRNNModel(torch.nn.Module):
         # Init RNN states, if not done
         if not hasattr(self, 'rnnstates'):
             self._init_rnn_states(b)
-
-        # Clean the utterances with reset == 2 (empty sample). Handle multi-gpu scenario, where one GPU may receive
-        # all it samples with reset == 2.
-        if all(reset == 2):
-            return torch.zeros(x.size(0), self.receptive_field, self.quantizer.q_levels).to(x.device)
-        else:
-            x = x[reset != 2]
-            y = y[reset != 2]
-            utt_conds = utt_conds[reset != 2]
 
         # Quantize both x and y
         x, y = self.quantizer.quantize(x), self.quantizer.quantize(y)
@@ -239,6 +227,10 @@ class SampleRNNModel(torch.nn.Module):
         # Propagate through sample level layers
         input_samples = x[:, (self.frames_layers[-1].input_samples - self.sample_layer.input_samples):]
         y_hat = self.sample_layer(input_samples, conds, upper_tier_conditioning)
+
+        # Return only valid samples
+        y_hat = y_hat[reset != 2]
+        y = y[reset != 2]
 
         # Return both y_hat and y, even this last one is not used (just quantized for loss computation)
         return y_hat, y
