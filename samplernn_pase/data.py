@@ -12,6 +12,7 @@ import samplernn_pase.loader
 import samplernn_pase.utils as utils
 import skeltorch
 import soundfile
+import torch.utils.data
 
 
 class SampleRNNPASEData(skeltorch.Data):
@@ -420,8 +421,8 @@ class SampleRNNPASEData(skeltorch.Data):
         self.loaders['validation'] = samplernn_pase.loader.SampleRNNPASELoader(
             dataset=self.datasets['validation'], batch_size=self.experiment.configuration.get('training', 'batch_size')
         )
-        self.loaders['test'] = samplernn_pase.loader.SampleRNNPASELoader(
-            dataset=self.datasets['test'], batch_size=self.experiment.configuration.get('training', 'batch_size')
+        self.loaders['test'] = torch.utils.data.DataLoader(
+            dataset=self.datasets['test'], batch_size=1, sampler=torch.utils.data.SubsetRandomSampler([10, 20, 30])
         )
 
     def get_conds_linguistic_size(self):

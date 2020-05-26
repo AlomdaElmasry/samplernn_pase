@@ -36,12 +36,19 @@ class SampleRNNPASERunner(skeltorch.Runner):
         y_hat, y = self.model(x, y, utt_conds, info, reset)
         return torch.nn.functional.nll_loss(y_hat.view(-1, y_hat.size(2)), y.view(-1))
 
-    def lala(self):
-        print('newww')
-        for it_data in self.experiment.data.loaders['train']:
-            print('ey')
-            a = 1
+    def train_after_epoch_tasks(self, device):
+        self.test(None, device)
 
     def test(self, epoch, device):
+        # Check if test has a forced epoch to load objects and restore checkpoint
+        if epoch is not None and epoch not in self.experiment.checkpoints_get():
+            exit('Epoch {} not found.'.format(epoch))
+        elif epoch is not None:
+            self.load_states(epoch, device)
+
+        # Iterate over the test samples and save them in TensorBoard
         for it_data in self.experiment.data.loaders['test']:
-            a = 1
+            x, utt_conds, info = it_data
+            x, utt_conds = x.to(device), utt_conds.to(device)
+            y_hat = self.model.test(utt_conds, info)
+            self.experiment.tbx.add_audio(info['utterance']['name'][0], y_hat, self.counters['epoch'], 16000)

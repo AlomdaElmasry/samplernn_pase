@@ -72,28 +72,13 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
                 y.append(torch.zeros(y_len))
                 utt_conds.append(torch.zeros(utt_conds_len, self.conds_utterance_size))
                 continue
-            elif self.dataset.split in ['train', 'validation']:
+            else:
                 x.append(torch.from_numpy(buffer_item[0][:x_len]))
                 y.append(torch.from_numpy(buffer_item[0][self.dataset.frame_size:self.dataset.frame_size + y_len]))
                 utt_conds.append(torch.from_numpy(buffer_item[1][:utt_conds_len, :]).type(torch.float32))
                 buffer_item[0] = buffer_item[0][y_len:]
                 buffer_item[1] = buffer_item[1][utt_conds_len:, :]
-            else:
-                pass
-                # x[buffer_index, :buffer_item[0].shape[0]] = torch.from_numpy(buffer_item[0])
-                # conds[buffer_index, :buffer_item[1].shape[0], :] = torch.from_numpy(buffer_item[1])
-                # y[buffer_index, :buffer_item[0].shape[0] - self.frame_size] = torch.from_numpy(
-                #     buffer_item[0][self.frame_size:]
-                # )
-                # buffer_item[0] = buffer_item[0][-self.frame_size:]
-                # buffer_item[1] = buffer_item[1][buffer_item[1].shape[0]:, :]
         return torch.stack(x), torch.stack(y), torch.stack(utt_conds), torch.tensor(reset), info
 
     def _get_iteration_sizes(self):
-        if self.dataset.split in ['train', 'validation']:
-            return self.receptive_field + self.dataset.frame_size - 1, self.receptive_field, self.dataset.sequence_length
-        else:
-            x_len = max([buffer_item[0].shape[0] for buffer_item in self.buffer if buffer_item is not None])
-            y_len = x_len - self.dataset.frame_size
-            conds_len = max([buffer_item[1].shape[0] for buffer_item in self.buffer if buffer_item is not None])
-            return x_len, y_len, conds_len
+        return self.receptive_field + self.dataset.frame_size - 1, self.receptive_field, self.dataset.sequence_length

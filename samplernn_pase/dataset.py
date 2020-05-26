@@ -58,10 +58,7 @@ class SampleRNNPASEDataset(torch.utils.data.Dataset):
 
     def _get_model_len(self, utterance_wav_len_real):
         samples_per_forward = self.sequence_length * self.frame_size
-        if self.split == 'test':
-            next_seq_length_mult = int(((utterance_wav_len_real // samples_per_forward) + 1) * samples_per_forward)
-        else:
-            next_seq_length_mult = int((utterance_wav_len_real // samples_per_forward) * samples_per_forward)
+        next_seq_length_mult = int((utterance_wav_len_real // samples_per_forward) * samples_per_forward)
         return next_seq_length_mult, int(next_seq_length_mult / self.frame_size)
 
     def _get_conds(self, dataset, speaker, utterance):
