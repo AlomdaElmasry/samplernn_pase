@@ -1,7 +1,28 @@
 import numpy as np
 import samplernn_pase.utils as utils
+import math
 import torch
 import torch.nn.functional as F
+
+
+def lecun_uniform(tensor):
+    fan_in = torch.nn.init._calculate_correct_fan(tensor, 'fan_in')
+    torch.nn.init.uniform_(tensor, -math.sqrt(3 / fan_in), math.sqrt(3 / fan_in))
+
+
+def concat_init(tensor, inits):
+    try:
+        tensor = tensor.data
+    except AttributeError:
+        pass
+
+    (length, fan_out) = tensor.size()
+    fan_in = length // len(inits)
+
+    chunk = tensor.new(fan_in, fan_out)
+    for (i, init) in enumerate(inits):
+        init(chunk)
+        tensor[i * fan_in: (i + 1) * fan_in, :] = chunk
 
 
 class CondsMixer(torch.nn.Module):
@@ -75,12 +96,14 @@ class CondsMixer(torch.nn.Module):
 class FrameLevelLayer(torch.nn.Module):
     input_samples = None
     ratio = None
+    rnn_layers = None
     rnn_hidden_size = None
 
     def __init__(self, input_samples, conds_size, ratio, rnn_layers, rnn_hidden_size):
         super(FrameLevelLayer, self).__init__()
         self.input_samples = input_samples
         self.ratio = ratio
+        self.rnn_layers = rnn_layers
         self.rnn_hidden_size = rnn_hidden_size
         self.x_expand = torch.nn.Conv1d(input_samples, rnn_hidden_size, 1)
         self.conds_expand = torch.nn.Conv1d(conds_size, rnn_hidden_size, 1)
@@ -89,9 +112,27 @@ class FrameLevelLayer(torch.nn.Module):
         self.upsample = torch.nn.ConvTranspose1d(rnn_hidden_size, rnn_hidden_size, ratio, stride=ratio, bias=False)
         self.upsample_bias = torch.nn.Parameter(torch.zeros(rnn_hidden_size, ratio))
         self.upsample.reset_parameters()
-        self._init_weight_norm()
+        self._init_weights()
+        self._init_weights_norm()
 
-    def _init_weight_norm(self):
+    def _init_weights(self):
+        torch.nn.init.kaiming_uniform_(self.x_expand.weight)
+        torch.nn.init.kaiming_uniform_(self.conds_expand.weight)
+        torch.nn.init.constant_(self.x_expand.bias, 0)
+        torch.nn.init.constant_(self.conds_expand.bias, 0)
+        torch.nn.init.constant_(self.upsample_bias, 0)
+        torch.nn.init.uniform_(
+            self.upsample.weight, -np.sqrt(6 / self.rnn_hidden_size), np.sqrt(6 / self.rnn_hidden_size)
+        )
+        for i in range(self.rnn_layers):
+            torch.nn.init.constant_(getattr(self.rnn, 'bias_ih_l{}'.format(i)), 0)
+            torch.nn.init.constant_(getattr(self.rnn, 'bias_hh_l{}'.format(i)), 0)
+            concat_init(getattr(self.rnn, 'weight_ih_l{}'.format(i)),
+                        [lecun_uniform, lecun_uniform, lecun_uniform])
+            concat_init(getattr(self.rnn, 'weight_hh_l{}'.format(i)),
+                        [lecun_uniform, lecun_uniform, torch.nn.init.orthogonal_])
+
+    def _init_weights_norm(self):
         self.x_expand = torch.nn.utils.weight_norm(self.x_expand)
         self.conds_expand = torch.nn.utils.weight_norm(self.conds_expand)
         self.upsample = torch.nn.utils.weight_norm(self.upsample)
@@ -129,9 +170,17 @@ class SampleLevelLayer(torch.nn.Module):
         self.comb_layer = torch.nn.Linear(rnn_hidden_size * 3, rnn_hidden_size)
         self.comb_layer_expand = torch.nn.Conv1d(rnn_hidden_size, rnn_hidden_size, 1)
         self.adapt = torch.nn.Conv1d(rnn_hidden_size, q_levels, 1)
-        self._init_weight_norm()
+        self._init_weights()
+        self._init_weights_norm()
 
-    def _init_weight_norm(self):
+    def _init_weights(self):
+        torch.nn.init.kaiming_uniform_(self.emb_layer_expand.weight)
+        torch.nn.init.kaiming_uniform_(self.comb_layer.weight)
+        torch.nn.init.constant_(self.comb_layer.bias, 0)
+        lecun_uniform(self.adapt.weight)
+        torch.nn.init.constant_(self.adapt.bias, 0)
+
+    def _init_weights_norm(self):
         self.emb_layer_expand = torch.nn.utils.weight_norm(self.emb_layer_expand)
         self.comb_layer_expand = torch.nn.utils.weight_norm(self.comb_layer_expand)
         self.adapt = torch.nn.utils.weight_norm(self.adapt)
