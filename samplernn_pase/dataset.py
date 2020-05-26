@@ -43,10 +43,10 @@ class SampleRNNPASEDataset(torch.utils.data.Dataset):
         utterance_wav, _ = soundfile.read(os.path.join(dataset['wavs_folder_path'], utterance['path'] + '.wav'))
         utterance_conds = self._get_conds(dataset, speaker, utterance)
         utterance_wav_len, utterance_conds_len = self._get_model_len(utterance_wav.shape[0])
-        utterance_wav_len = min(utterance_wav_len, utterance_wav.shape[0])
         utterance_conds_len = min(utterance_conds_len, utterance_conds.shape[0])
-        utterance_wav = utterance_wav[:utterance_wav_len]
-        utterance_conds = utterance_conds[:utterance_conds_len, :]
+        utterance_wav_len = min(utterance_wav_len, utterance_conds_len * self.frame_size)
+        utterance_wav = utterance_wav[:utterance_wav_len].astype(np.float32)
+        utterance_conds = utterance_conds[:utterance_conds_len, :].astype(np.float32)
         utterance_wav = np.pad(utterance_wav, (self.frame_size, 0))
         return utterance_wav, utterance_conds, {'dataset': dataset, 'speaker': speaker, 'utterance': utterance}
 

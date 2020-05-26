@@ -243,48 +243,40 @@ class SampleRNNModel(torch.nn.Module):
         # Return both y_hat and y, even this last one is not used (just quantized for loss computation)
         return y_hat, y
 
-    def test(self, utterances_conds, utterances_reset):
-        # Get batch_size
-        (batch_size, num_portions, conds_size) = utterances_conds.size()
+    def test(self, utt_conds, reset):
+        b, t, conds_size = utt_conds.size()
 
         # Create a Tensor to store the generated samples in
-        generated_sequences = torch.zeros(
-            batch_size,
-            self.conf.architecture['frame_size'] + num_portions * self.conf.architecture['frame_size'],
-            dtype=torch.int64
-        ).fill_(self.quantizer.quantize_zero())
-
-        # Move to CUDA
-        if utterances_conds.is_cuda:
-            generated_sequences = generated_sequences.cuda()
+        generated_sequences = torch.zeros(b, (t + 1) * self.conf.architecture['frame_size'], dtype=torch.int64
+                                          ).fill_(self.quantizer.quantize_zero()).to(utt_conds.device)
 
         # Create a list to store the conditioning
-        frame_level_outputs = [None for _ in self.frame_level_layers]
+        frame_level_outputs = [None for _ in self.frames_layers]
 
         # Iterate over the samples
-        for generated_sample in range(self.conf.architecture['frame_size'], generated_sequences.shape[1]):
+        for xi in range(self.conf.architecture['frame_size'], generated_sequences.shape[1]):
             # Compute conds index
-            conds_indx, _ = divmod(generated_sample, self.conf.architecture['frame_size'])
+            conds_indx, _ = divmod(xi, self.conf.architecture['frame_size'])
             conds_indx -= 1
 
             # On
-            if generated_sample == self.conf.architecture['frame_size'] + 1:
-                utterances_reset[utterances_reset == 1] = 0
+            if xi == self.conf.architecture['frame_size'] + 1:
+                reset[reset == 1] = 0
 
             # Iterate over Frame Level layers
             for (frame_level_indx, frame_level_layer) in reversed(list(enumerate(self.frame_level_layers))):
 
                 # If the generated sample is not a multiple of the input size, skip
-                if generated_sample % frame_level_layer.frame_input_samples != 0:
+                if xi % frame_level_layer.frame_input_samples != 0:
                     continue
 
                 # Prepare the input samples to enter the model
                 frame_layer_input_samples = torch.autograd.Variable(self.quantizer.dequantize(
-                    generated_sequences[:, generated_sample - frame_level_layer.frame_input_samples:generated_sample]
+                    generated_sequences[:, xi - frame_level_layer.frame_input_samples:xi]
                 ).unsqueeze(1))
 
                 # Mode the variable to CUDA, if available
-                if utterances_conds.is_cuda:
+                if utt_conds.is_cuda:
                     frame_layer_input_samples = frame_layer_input_samples.cuda()
 
                 # Check if we have conditioning
@@ -295,7 +287,7 @@ class SampleRNNModel(torch.nn.Module):
                 else:
 
                     # Compute frame_index
-                    frame_index = (generated_sample // frame_level_layer.frame_input_samples) % \
+                    frame_index = (xi // frame_level_layer.frame_input_samples) % \
                                   self.frame_level_layers[frame_level_indx + 1].frame_ratio
 
                     # Get the upper tier conditioning from the previous upper tier
@@ -305,14 +297,14 @@ class SampleRNNModel(torch.nn.Module):
                 # Set the new hidden states
                 frame_level_hidden_state = self._get_frame_level_hidden_states(
                     frame_level_layer=frame_level_layer,
-                    reset_list=utterances_reset
+                    reset_list=reset
                 )
 
                 # Propagate through current frame level layer
                 frame_level_outputs[frame_level_indx], new_frame_level_hiddden_state = \
                     frame_level_layer(
                         input_samples=frame_layer_input_samples,
-                        input_conds=utterances_conds[:, conds_indx, :].unsqueeze(1),
+                        input_conds=utt_conds[:, conds_indx, :].unsqueeze(1),
                         upper_tier_conditioning=upper_tier_conditioning,
                         rnn_hidden_state=frame_level_hidden_state
                     )
@@ -321,25 +313,25 @@ class SampleRNNModel(torch.nn.Module):
                 self._set_frame_level_hidden_states(
                     new_hidden_state_tensor=new_frame_level_hiddden_state.detach(),
                     frame_level_layer=frame_level_layer,
-                    reset_list=utterances_reset
+                    reset_list=reset
                 )
 
             # Prepare the input samples Sample Level Layer
             sample_layer_input_samples = \
-                generated_sequences[:, generated_sample - self.sample_level_layer.frame_input_samples:generated_sample]
+                generated_sequences[:, xi - self.sample_level_layer.frame_input_samples:xi]
 
             # Mode the variable to CUDA, if available
-            if utterances_conds.is_cuda:
+            if utt_conds.is_cuda:
                 sample_layer_input_samples = sample_layer_input_samples.cuda()
 
             # Prepare conditioning
-            upper_tier_conditioning = frame_level_outputs[0][:, generated_sample % self.sample_level_layer
+            upper_tier_conditioning = frame_level_outputs[0][:, xi % self.sample_level_layer
                 .frame_input_samples, :].unsqueeze(1)
 
             # Store generated samples
-            generated_sequences[:, generated_sample] = self.sample_level_layer(
+            generated_sequences[:, xi] = self.sample_level_layer(
                 input_samples=sample_layer_input_samples,
-                input_conds=utterances_conds[:, conds_indx, :].unsqueeze(1),
+                input_conds=utt_conds[:, conds_indx, :].unsqueeze(1),
                 upper_tier_conditioning=upper_tier_conditioning
             ).squeeze(1).exp_().multinomial(1).squeeze(1)
 

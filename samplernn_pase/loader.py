@@ -13,7 +13,6 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
     buffer = []
     reset_buffer = []
     no_more_samples_in_batch: bool
-    _exclude_utterances_ids = []
 
     def __init__(self, dataset, batch_size):
         self.dataset = dataset
@@ -32,8 +31,6 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
         while True:
             self._prepare_buffers()
             self._fill_data()
-            if self.dataset.split == 'test' and not all(self.buffer) or not any(self.buffer):
-                break
             yield self._yield_iteration()
 
     def _reset_parameters(self):
@@ -48,8 +45,7 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
             if buffer_item is None:
                 continue
             self.reset_buffer[buffer_index] = False
-            if buffer_item[0].shape[0] == self.dataset.frame_size or \
-                    buffer_item[1].shape[0] < self.dataset.sequence_length:
+            if buffer_item[1].shape[0] < self.dataset.sequence_length:
                 self.buffer[buffer_index] = None
                 self.reset_buffer[buffer_index] = None
 
@@ -58,10 +54,8 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
             try:
                 none_indexes = [i for i, x in enumerate(self.buffer) if x is None]
                 none_index = random.choice(none_indexes)
-                next_item = list(next(self.dataset_iterator))
-                if next_item[2]['utterance']['index'] not in self._exclude_utterances_ids:
-                    self.buffer[none_index] = next_item
-                    self.reset_buffer[none_index] = True
+                self.buffer[none_index] = list(next(self.dataset_iterator))
+                self.reset_buffer[none_index] = True
             except StopIteration:
                 self.no_more_samples_in_batch = True
 
@@ -82,8 +76,8 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
                 x.append(torch.from_numpy(buffer_item[0][:x_len]))
                 y.append(torch.from_numpy(buffer_item[0][self.dataset.frame_size:self.dataset.frame_size + y_len]))
                 utt_conds.append(torch.from_numpy(buffer_item[1][:utt_conds_len, :]).type(torch.float32))
-                buffer_item[0] = buffer_item[0][self.receptive_field:]
-                buffer_item[1] = buffer_item[1][self.dataset.sequence_length:, :]
+                buffer_item[0] = buffer_item[0][y_len:]
+                buffer_item[1] = buffer_item[1][utt_conds_len:, :]
             else:
                 pass
                 # x[buffer_index, :buffer_item[0].shape[0]] = torch.from_numpy(buffer_item[0])
@@ -93,7 +87,6 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
                 # )
                 # buffer_item[0] = buffer_item[0][-self.frame_size:]
                 # buffer_item[1] = buffer_item[1][buffer_item[1].shape[0]:, :]
-
         return torch.stack(x), torch.stack(y), torch.stack(utt_conds), torch.tensor(reset), info
 
     def _get_iteration_sizes(self):
@@ -102,7 +95,5 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
         else:
             x_len = max([buffer_item[0].shape[0] for buffer_item in self.buffer if buffer_item is not None])
             y_len = x_len - self.dataset.frame_size
-            conds_len = max(
-                [buffer_item[1].shape[0] for buffer_item in self.buffer if buffer_item is not None]
-            )
+            conds_len = max([buffer_item[1].shape[0] for buffer_item in self.buffer if buffer_item is not None])
             return x_len, y_len, conds_len

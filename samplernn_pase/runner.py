@@ -36,5 +36,12 @@ class SampleRNNPASERunner(skeltorch.Runner):
         y_hat, y = self.model(x, y, utt_conds, info, reset)
         return torch.nn.functional.nll_loss(y_hat.view(-1, y_hat.size(2)), y.view(-1))
 
+    def lala(self):
+        print('newww')
+        for it_data in self.experiment.data.loaders['train']:
+            print('ey')
+            a = 1
+
     def test(self, epoch, device):
-        pass
+        for it_data in self.experiment.data.loaders['test']:
+            a = 1
