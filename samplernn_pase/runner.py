@@ -1,11 +1,11 @@
 import samplernn_pase.model
 import skeltorch
 import torch
+import torch.optim.lr_scheduler
 
 
 class SampleRNNPASERunner(skeltorch.Runner):
-    quantizer = None
-    speaker_embedding = None
+    scheduler = None
 
     def init_model(self, device):
         self.model = samplernn_pase.model.SampleRNNModel(
@@ -30,13 +30,31 @@ class SampleRNNPASERunner(skeltorch.Runner):
             self.model.parameters(), lr=self.experiment.configuration.get('training', 'lr')
         )
 
+    def init_others(self, device):
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer, mode='min',
+            patience=self.experiment.configuration.get('training', 'lr_scheduler_patience'),
+            factor=self.experiment.configuration.get('training', 'lr_scheduler_factor')
+        )
+
+    def load_states_others(self, checkpoint_data):
+        self.scheduler.load_state_dict(checkpoint_data['scheduler'])
+
+    def save_states_others(self):
+        return {'scheduler': self.scheduler.state_dict()}
+
     def train_step(self, it_data, device):
         x, y, utt_conds, reset, info = it_data
         x, y, utt_conds = x.to(device), y.to(device), utt_conds.to(device)
         y_hat, y = self.model(x, y, utt_conds, info, reset)
         return torch.nn.functional.nll_loss(y_hat.view(-1, y_hat.size(2)), y.view(-1))
 
+    def train_before_epoch_tasks(self, device):
+        super().train_before_epoch_tasks(device)
+        self.experiment.tbx.add_scalar('lr', self.optimizer.param_groups[0]['lr'], self.counters['epoch'])
+
     def train_after_epoch_tasks(self, device):
+        self.scheduler.step(self.losses_epoch['validation'][self.counters['epoch']], self.counters['epoch'])
         self.test(None, device)
 
     def test(self, epoch, device):
