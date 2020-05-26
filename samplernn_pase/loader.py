@@ -8,16 +8,18 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
     batch_size = None
     receptive_field = None
     conds_utterance_size = None
+    require_full_batch = None
 
     dataset_iterator = None
     buffer = []
     reset_buffer = []
     no_more_samples_in_batch: bool
 
-    def __init__(self, dataset, batch_size):
+    def __init__(self, dataset, batch_size, require_full_batch=True):
         self.dataset = dataset
         self.batch_size = batch_size
         self.receptive_field = self.dataset.frame_size * self.dataset.sequence_length
+        self.require_full_batch = require_full_batch
         if self.dataset.conds_utterance_type == 'acoustic':
             self.conds_utterance_size = 43
         elif self.dataset.conds_utterance_type == 'linguistic':
@@ -31,6 +33,8 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
         while True:
             self._prepare_buffers()
             self._fill_data()
+            if self.require_full_batch and not all(self.buffer):
+                break
             yield self._yield_iteration()
 
     def _reset_parameters(self):
