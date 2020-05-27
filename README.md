@@ -1,8 +1,9 @@
 # SampleRNN in PyTorch
 This repository contains a refractored version of the code used in 
 [Problem-Agnostic Speech Embeddings for Multi-Speaker Text-to-Speech with SampleRNN](https://www.isca-speech.org/archive/SSW_2019/abstracts/SSW10_O_2-3.html).
-This implementation is not complete, you can download the original version of the code [from here](). Use this version
-of the implementation if the only thing you need is the model or one of the data-related classes.
+This implementation is not complete, you can download the original version of the code 
+[from here](https://www.dropbox.com/s/hcmqm3z0toby7hj/samplernn_pase_old.zip?dl=0). Use this version of the 
+implementation if the only thing you need is the model or one of the data-related classes.
 
 **Important note**: I have noted that, after refractoring the code, there are problems related with gradient exploding.
 I do not have the time to discover what is the reasson behind this problem.
