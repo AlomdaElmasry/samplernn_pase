@@ -29,6 +29,7 @@ class SampleRNNPASEData(skeltorch.Data):
     modeling_utterances_ids_train = []
     modeling_utterances_ids_val = []
     modeling_utterances_ids_test = []
+    modeling_utterances_ids_test_infer = []
     adaptation_speakers_ids = []
     adaptation_utterances_ids_train = []
     adaptation_utterances_ids_val = []
@@ -310,6 +311,9 @@ class SampleRNNPASEData(skeltorch.Data):
                 else:
                     self.logger.warning('Not enough data for {}'.format(modeling_speaker_id))
                     break
+            self.modeling_utterances_ids_test_infer = random.sample(
+                list(range(len(self.modeling_utterances_ids_test))), 10
+            )
             while modeling_speaker_val_time_acc < \
                     self.experiment.configuration.get('data', 'modeling_val_time_per_speaker'):
                 if len(modeling_speaker_utterances_ids) > 0:
@@ -422,7 +426,8 @@ class SampleRNNPASEData(skeltorch.Data):
             dataset=self.datasets['validation'], batch_size=self.experiment.configuration.get('training', 'batch_size')
         )
         self.loaders['test'] = torch.utils.data.DataLoader(
-            dataset=self.datasets['test'], batch_size=1, sampler=torch.utils.data.SubsetRandomSampler([10, 20, 30])
+            dataset=self.datasets['test'], batch_size=1,
+            sampler=torch.utils.data.SubsetRandomSampler(self.modeling_utterances_ids_test_infer)
         )
 
     def get_conds_linguistic_size(self):

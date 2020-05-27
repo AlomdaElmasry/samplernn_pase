@@ -45,6 +45,7 @@ class SampleRNNPASERunner(skeltorch.Runner):
         return {'scheduler': self.scheduler.state_dict()}
 
     def train_step(self, it_data, device):
+        self.test(None, device)
         x, y, utt_conds, reset, info = it_data
         x, y, utt_conds = x.to(device), y.to(device), utt_conds.to(device)
         y_hat, y = self.model(x, y, utt_conds, info, reset)

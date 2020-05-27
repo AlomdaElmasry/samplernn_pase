@@ -305,7 +305,6 @@ class SampleRNNModel(torch.nn.Module):
 
         # Iterate over the samples
         for xi in range(self.frame_size, y_hat.shape[1]):
-            break
             conds_indx, _ = divmod(xi, self.frame_size)
             conds_indx -= 1
 
