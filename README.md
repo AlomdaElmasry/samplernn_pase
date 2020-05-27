@@ -1,60 +1,66 @@
 # SampleRNN in PyTorch
+This repository contains a refractored version of the code used in 
+[Problem-Agnostic Speech Embeddings for Multi-Speaker Text-to-Speech with SampleRNN](https://arxiv.org/abs/1906.00733).
+This implementation is not complete, you can download the original version of the code [from here](). Use this version
+of the implementation if the only thing you need is the model or one of the data-related classes.
 
-Code used in [Problem-Agnostic Speech Embeddings for Multi-Speaker Text-to-Speech with SampleRNN](https://arxiv.org/abs/1906.00733)
+**Important note**: I've noted that, after refractoring the code, there are problems related with gradient exploding. I
+don't have the time to discover what's the reasson behind this problem.
 
-__Note__: the code is not production-ready, but it works. I will improve it over time.
+## About the data 
+The paper uses both VCTK and CMU Arctic speakers to train its models. As some of the samples are invalid, I cleaned the
+data before extracting the linguistic features with Merlin. Also notice that the data was trimmed and downsampled to 
+16 kHz. You can download the exact set of data used in this paper [from this link]().
 
-## Dependencies
+Both the data set and the loader of this implementation are not trivial to understand. While the only job of the data 
+set is to return the utterances along with its features, the loader is modified so their portions are feeded
+sequentially. This way of training the model is due to the fact the SampleRNN has a recurrent architecture, which 
+implies forces a continuity of the hidden states between contiguous samples. For the first samples of each utterance,
+this hidden state is set to be a learnable parameter.
 
-The dependencies of the repository are specified using the standard 
-`requirements.txt` file. To install them, just execute the following command 
-using the desired `pip binary:
+Maybe this is no the ideal approach to train the model, but that's the way it was done in the paper and the one which
+published both in this refractored version of the code and in the original one. 
 
-```pip install -r requirements.txt```
+## Running an experiment
+The first step is to clone this repository and install its dependencies:
 
-The code has been tested using _Python 3.7_.
+```
+git clone https://github.com/davidalvarezdlt/samplernn_pase.git
+cd samplernn_pase
+pip install -r requirements.txt
+```
+ 
+This refractored version is built using Skeltorch. Read its documentation to get a complete overview of how is this 
+repository organized. After downloading the data from the link of the previous section, the first step would be to
+create a new experiment:
 
-## Executing the code
+```
+python -m samplernn_pase --data-path <path_to_data_folder> --experiment-name test --verbose init --config-path config.default.json
+```
 
-The code must be executed calling the package directly. There four different 
-commands, which should be executed sequentially:
+This will create the folder `samplernn_pase/experiments/test/` with the files required to run the experiment. Notice
+that the configuration file `config.default.json` contains several important parameters related to both the data and the
+model. After the experiment has been created (it may take a while, as it's computing normalization scores for each
+speaker), you can train it using:
 
-````
-Usage:
-    python -m samplernn [--global-config <global_config_file_path>] [--seed <seed>] [--cuda] [--cuda-device 
-    <cuda_device>] [--parallel] [--verbose] <COMMAND>
-    
-Options:
-    --global-config <global_config_file_path>           Full path to global.config.yml file.
-    --seed <seed>                                       SEED to be used in the initialization.
-    --cuda                                              Whether or not to run in CUDA.
-    --cuda-device <cuda_device>                         CUDA device to use.
-    --parallel                                          Whether or not to run in multiple GPUs.
-    --verbose                                           Whether or not to log using standard output.
-    
-Commands:
-    init --exp-name <experiment_name> --split-config <split_config_file_path> --model-config <model_config_file_path>
-    init_adaptation --exp-name <experiment_name> [--exp-base-name <base_experiment_name>] [--checkpoint-base-epoch 
-    <base_experiment_epoch>]
-    train --exp-name <experiment_name>
-    test --exp-name <experiment_name> --checkpoint-epoch <checkpoint_epoch>
-    test_speaker --exp-name <experiment_name> --checkpoint-epoch <checkpoint_epoch> --speaker-id <speaker_ids> 
-    --seed-duration <seed_duration>
-    infer --exp-name <experiment_name> --checkpoint-epoch <checkpoint_epoch>
-      
-Commands Options:
-    --exp-name <experiment_name>                        Name of the experiment of the execution.
-    --split-config <split_config_file_path>             Full path to split.config.yml file.
-    --model-config <model_config_file_path>             Full path to model.config.yml file.
-    --exp-base-name <base_experiment_name>              Name of the experiment to use as a base for adaptation.
-    --checkpoint-base-epoch <base_experiment_epoch>     Checkpoint to use as initial state of the model from the base
-                                                        experiment.
-    --checkpoint-epoch <checkpoint_epoch>               Epoch to perform the tests.
-    --speaker-id <speaker_ids>                          List of SpeakerIDs to test
-    --seed-duration <seed_duration>                     List of PASE seed durations to test
-````
+```
+python -m samplernn_pase --data-path <path_to_data_folder> --experiment-name test --verbose train --device cuda
+```
 
-## References
+The experiment will start training using a GPU. If you don't have one, make sure to change to `--device cpu`. The test
+is runned automatically after each epoch, infering some samples from the test slit.
 
-* [SampleRNN: An Unconditional End-to-End Neural Audio Generation Model](https://arxiv.org/abs/1612.07837)
-* [SampleRNN implementation in PyTorch by DeepSound](https://github.com/deepsound-project/samplernn-pytorch)
+## Citation
+Please cite our paper if this has been useful for your research:
+
+```
+@inproceedings{Alvarez2019,
+  author={David Álvarez and Santiago Pascual and Antonio Bonafonte},
+  title={{Problem-Agnostic Speech Embeddings for Multi-Speaker Text-to-Speech with SampleRNN}},
+  year=2019,
+  booktitle={Proc. 10th ISCA Speech Synthesis Workshop},
+  pages={35--39},
+  doi={10.21437/SSW.2019-7},
+  url={http://dx.doi.org/10.21437/SSW.2019-7}
+}
+```
