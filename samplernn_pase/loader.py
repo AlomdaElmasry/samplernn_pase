@@ -10,9 +10,9 @@ class SampleRNNPASELoader(torch.utils.data.DataLoader):
     conds_utterance_size = None
 
     dataset_iterator = None
-    buffer = []
-    reset_buffer = []
-    no_more_samples_in_batch: bool
+    buffer = None
+    reset_buffer = None
+    no_more_samples_in_batch = None
 
     def __init__(self, dataset, batch_size):
         self.dataset = dataset
