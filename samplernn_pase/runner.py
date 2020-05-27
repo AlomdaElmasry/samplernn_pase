@@ -1,4 +1,5 @@
 import samplernn_pase.model
+import samplernn_pase.optimizer
 import skeltorch
 import torch
 import torch.optim.lr_scheduler
@@ -26,7 +27,7 @@ class SampleRNNPASERunner(skeltorch.Runner):
         ).to(device)
 
     def init_optimizer(self, device):
-        self.optimizer = torch.optim.Adam(
+        self.optimizer = samplernn_pase.optimizer.AdamClipped(
             self.model.parameters(), lr=self.experiment.configuration.get('training', 'lr')
         )
 
@@ -45,20 +46,9 @@ class SampleRNNPASERunner(skeltorch.Runner):
 
     def train_step(self, it_data, device):
         x, y, utt_conds, reset, info = it_data
-        self._validate_iteration(x, y, utt_conds)
         x, y, utt_conds = x.to(device), y.to(device), utt_conds.to(device)
         y_hat, y = self.model(x, y, utt_conds, info, reset)
         return torch.nn.functional.nll_loss(y_hat.view(-1, y_hat.size(2)), y.view(-1))
-
-    def _validate_iteration(self, x, y, utt_conds):
-        x_nan = any(torch.isnan(x.view(-1)).tolist())
-        x_inf = any(torch.isinf(x.view(-1)).tolist())
-        y_nan = any(torch.isnan(y.view(-1)).tolist())
-        y_inf = any(torch.isinf(y.view(-1)).tolist())
-        conds_nan = any(torch.isnan(utt_conds.view(-1)).tolist())
-        conds_inf = any(torch.isinf(utt_conds.view(-1)).tolist())
-        if x_nan or x_inf or y_nan or y_inf or conds_nan or conds_inf:
-            exit('Sample invalid')
 
     def train_before_epoch_tasks(self, device):
         super().train_before_epoch_tasks(device)
