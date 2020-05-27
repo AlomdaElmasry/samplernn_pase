@@ -1,8 +1,8 @@
 {
 	"data": {
-		"modeling_male_speakers": 5,
-		"modeling_female_speakers": 5,
-		"modeling_train_time_per_speaker": 3600,
+		"modeling_male_speakers": 40,
+		"modeling_female_speakers": 40,
+		"modeling_train_time_per_speaker": 9999,
 		"modeling_val_time_per_speaker": 45,
 		"modeling_test_time_per_speaker": 45,
 		"adaptation_male_speakers": 5,
@@ -40,7 +40,7 @@
 		"q_levels": 256
 	},
 	"training": {
-		"batch_size": 32,
+		"batch_size": 128,
 		"lr": 0.0001,
 		"lr_scheduler": true,
 		"lr_scheduler_patience": 3,

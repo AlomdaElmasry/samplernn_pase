@@ -1,7 +1,7 @@
-numpy
-torch
-PyYAML
-soundfile
-skeltorch==1.1.0b3
 git+https://github.com/santi-pdp/ahoproc_tools
+numpy
 progressbar2
+PyYAML
+skeltorch
+soundfile
+torch

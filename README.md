@@ -10,7 +10,8 @@ I do not have the time to discover what is the reasson behind this problem.
 ## About the data 
 The paper uses both VCTK and CMU Arctic speakers to train its models. As some of the samples are invalid, I cleaned the
 data before extracting the linguistic features with Merlin. Also notice that the data was trimmed and downsampled to 
-16 kHz. You can download the exact set of data used in this paper [from this link]().
+16 kHz. You can download the exact set of data used in this paper 
+[from this link](https://www.kaggle.com/davidalvarezdlt/samplernn-pase).
 
 Both the data set and the loader of this implementation are not trivial to understand. While the only job of the data 
 set is to return the utterances along with its features, the loader is modified so their portions are feeded
